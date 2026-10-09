@@ -1,138 +1,159 @@
-import React, { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import { supabase } from '../lib/supabaseClient'
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { supabase } from '../lib/supabaseClient';
+import { useAuth } from '../lib/AuthContext';
 
 export default function EbookDetail() {
-  const { slug } = useParams()
-  const [ebook, setEbook] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [notFound, setNotFound] = useState(false)
+  const { slug } = useParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const [ebook, setEbook] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
 
   useEffect(() => {
-    async function fetchEbook() {
-      setLoading(true)
-      setNotFound(false)
+    fetchEbook();
+  }, [slug]);
 
-      const { data, error } = await supabase
-        .from('ebooks')
-        .select('*, categories(name)')
-        .eq('slug', slug)
-        .eq('is_published', true)
-        .single()
+  async function fetchEbook() {
+    setLoading(true);
+    setError('');
 
-      if (error || !data) {
-        setNotFound(true)
-        setEbook(null)
-      } else {
-        setEbook({ ...data, category_name: data.categories?.name })
-      }
+    const { data, error } = await supabase
+      .from('ebooks')
+      .select('*, categories ( name, slug )')
+      .eq('slug', slug)
+      .eq('is_published', true)
+      .single();
 
-      setLoading(false)
+    if (error || !data) {
+      setError('Ye eBook nahi mila ya abhi published nahi hai.');
+    } else {
+      setEbook(data);
+    }
+    setLoading(false);
+  }
+
+  function handleActionClick() {
+    setActionMessage('');
+
+    // Guest user: redirect to login, remember where to come back after login
+    if (!user) {
+      navigate('/login', { state: { from: `/ebooks/${slug}` } });
+      return;
     }
 
-    fetchEbook()
-  }, [slug])
+    // Logged in user: payment/download not implemented yet (Phase 3 & 4)
+    const isFree = !ebook.price || Number(ebook.price) === 0;
+    setActionMessage(
+      isFree
+        ? 'Free download jald hi available hoga. Dhanyavaad!'
+        : 'Payment system jald hi available hoga. Dhanyavaad!'
+    );
+  }
+
+  function formatPrice(price, discountPrice) {
+    const hasDiscount = discountPrice && Number(discountPrice) < Number(price);
+    return (
+      <div className="flex items-center gap-3">
+        <span className="text-2xl font-bold text-navy-900">
+          ₹{hasDiscount ? discountPrice : price}
+        </span>
+        {hasDiscount && (
+          <span className="text-lg text-navy-400 line-through">₹{price}</span>
+        )}
+      </div>
+    );
+  }
 
   if (loading) {
-    return <div className="text-center py-24 text-navy-400">Loading...</div>
+    return (
+      <div className="max-w-5xl mx-auto px-4 py-16 text-center text-navy-500">
+        Loading...
+      </div>
+    );
   }
 
-  if (notFound || !ebook) {
+  if (error || !ebook) {
     return (
-      <div className="text-center py-24">
-        <h1 className="text-2xl font-serif-heading font-bold text-navy-900 mb-3">
-          eBook Not Found
-        </h1>
-        <p className="text-navy-500 mb-6">
-          This eBook doesn't exist or is no longer available.
-        </p>
-        <Link to="/ebooks" className="text-gold-600 font-semibold hover:text-gold-700">
-          ← Back to eBooks
+      <div className="max-w-3xl mx-auto px-4 py-16 text-center">
+        <p className="text-navy-700 font-medium mb-4">{error}</p>
+        <Link to="/ebooks" className="text-gold-600 hover:underline">
+          ← Sabhi eBooks par wapas jayein
         </Link>
       </div>
-    )
+    );
   }
 
-  const hasDiscount = ebook.discount_price && ebook.discount_price < ebook.price
-  const shareUrl = typeof window !== 'undefined' ? window.location.href : ''
-
-  function handleShare() {
-    if (navigator.share) {
-      navigator.share({ title: ebook.title, url: shareUrl })
-    } else {
-      navigator.clipboard.writeText(shareUrl)
-      alert('Link copied to clipboard!')
-    }
-  }
+  const isFree = !ebook.price || Number(ebook.price) === 0;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-        <div className="md:col-span-1">
-          <div className="aspect-[3/4] bg-navy-100 rounded-xl overflow-hidden shadow-card">
-            {ebook.cover_image_url ? (
-              <img
-                src={ebook.cover_image_url}
-                alt={ebook.title}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-navy-400 text-5xl">
-                📖
-              </div>
-            )}
-          </div>
+    <div className="max-w-5xl mx-auto px-4 py-12">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-10">
+        {/* Cover Image */}
+        <div className="md:col-span-2">
+          <img
+            src={ebook.cover_image}
+            alt={ebook.title}
+            className="w-full rounded-xl shadow-card object-cover"
+          />
         </div>
 
-        <div className="md:col-span-2">
-          {ebook.category_name && (
-            <span className="text-xs font-semibold text-gold-600 uppercase tracking-wide">
-              {ebook.category_name}
-            </span>
+        {/* Details */}
+        <div className="md:col-span-3">
+          {ebook.categories && (
+            <Link
+              to={`/categories/${ebook.categories.slug}`}
+              className="inline-block text-xs font-medium text-gold-600 bg-gold-50 px-3 py-1 rounded-full mb-4 hover:bg-gold-100 transition"
+            >
+              {ebook.categories.name}
+            </Link>
           )}
-          <h1 className="text-3xl sm:text-4xl font-serif-heading font-bold text-navy-900 mt-2 mb-3">
+
+          <h1 className="text-3xl sm:text-4xl font-serif font-bold text-navy-900 mb-2 leading-tight">
             {ebook.title}
           </h1>
-          {ebook.author && (
-            <p className="text-navy-500 mb-4">by {ebook.author}</p>
-          )}
 
-          <div className="flex items-center gap-3 mb-6">
-            {hasDiscount ? (
-              <>
-                <span className="text-3xl font-bold text-navy-900">₹{ebook.discount_price}</span>
-                <span className="text-lg text-navy-400 line-through">₹{ebook.price}</span>
-              </>
-            ) : (
-              <span className="text-3xl font-bold text-navy-900">₹{ebook.price}</span>
-            )}
-          </div>
+          <p className="text-navy-500 mb-4">by {ebook.author}</p>
+
+          <div className="mb-4">{formatPrice(ebook.price, ebook.discount_price)}</div>
 
           {ebook.page_count && (
-            <p className="text-sm text-navy-500 mb-6">📄 {ebook.page_count} pages</p>
+            <p className="text-navy-400 text-sm mb-6">{ebook.page_count} pages</p>
           )}
 
-          <div className="prose max-w-none text-navy-700 mb-8 whitespace-pre-line">
+          <p className="text-navy-700 leading-relaxed mb-8 whitespace-pre-line">
             {ebook.description}
-          </div>
+          </p>
 
-          <div className="flex flex-wrap gap-4">
-            <button
-              disabled
-              title="Payments coming soon"
-              className="bg-navy-300 text-navy-600 font-semibold px-8 py-3 rounded-lg cursor-not-allowed"
-            >
-              Buy Now — Coming Soon
-            </button>
-            <button
-              onClick={handleShare}
-              className="border border-navy-300 hover:border-gold-400 text-navy-700 font-semibold px-6 py-3 rounded-lg transition-colors"
-            >
-              🔗 Share
-            </button>
-          </div>
+          <button
+            onClick={handleActionClick}
+            className="bg-gold-500 hover:bg-gold-600 text-navy-900 px-8 py-3 rounded-lg font-semibold transition shadow-card"
+          >
+            {isFree ? 'Get Free Copy' : 'Buy Now'}
+          </button>
+
+          {!user && (
+            <p className="text-navy-400 text-sm mt-3">
+              {isFree ? 'Download' : 'Purchase'} karne ke liye login ya signup karna zaroori hai.
+            </p>
+          )}
+
+          {actionMessage && (
+            <div className="mt-4 bg-navy-50 border border-navy-200 text-navy-700 px-4 py-3 rounded-lg text-sm">
+              {actionMessage}
+            </div>
+          )}
         </div>
       </div>
+
+      <div className="mt-12 pt-6 border-t border-navy-100">
+        <Link to="/ebooks" className="text-gold-600 hover:underline text-sm font-medium">
+          ← Sabhi eBooks dekhein
+        </Link>
+      </div>
     </div>
-  )
+  );
 }
