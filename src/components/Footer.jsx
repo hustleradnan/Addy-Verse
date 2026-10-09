@@ -1,8 +1,29 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { supabase } from '../lib/supabaseClient'
 
 export default function Footer() {
   const year = new Date().getFullYear()
+  const [siteName, setSiteName] = useState('BookVault')
+  const [logoEmoji, setLogoEmoji] = useState('📚')
+  const [tagline, setTagline] = useState('Premium eBooks & Articles')
+
+  useEffect(() => {
+    async function fetchSiteSettings() {
+      const { data } = await supabase
+        .from('site_content')
+        .select('content')
+        .eq('page_key', 'general')
+        .single()
+
+      if (data?.content) {
+        if (data.content.site_name) setSiteName(data.content.site_name)
+        if (data.content.logo_emoji) setLogoEmoji(data.content.logo_emoji)
+        if (data.content.tagline) setTagline(data.content.tagline)
+      }
+    }
+    fetchSiteSettings()
+  }, [])
 
   return (
     <footer className="bg-navy-950 text-navy-200 mt-auto">
@@ -10,10 +31,10 @@ export default function Footer() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           <div>
             <h3 className="text-xl font-serif-heading font-bold text-gold-400 mb-3">
-              📚 BookVault
+              {logoEmoji} {siteName}
             </h3>
             <p className="text-sm text-navy-300">
-              Your trusted source for premium eBooks and insightful articles.
+              {tagline}
             </p>
           </div>
 
@@ -50,7 +71,7 @@ export default function Footer() {
         </div>
 
         <div className="border-t border-navy-800 mt-10 pt-6 text-center text-sm text-navy-400">
-          © {year} BookVault. All rights reserved.
+          © {year} {siteName}. All rights reserved.
         </div>
       </div>
     </footer>
