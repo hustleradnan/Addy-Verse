@@ -9,6 +9,7 @@ export default function AdminSidebar() {
     { to: '/admin', label: 'Dashboard', icon: '📊', roles: ['super_admin', 'admin', 'editor'], end: true },
     { to: '/admin/ebooks', label: 'eBooks', icon: '📘', roles: ['super_admin', 'admin'] },
     { to: '/admin/articles', label: 'Articles', icon: '📝', roles: ['super_admin', 'admin', 'editor'] },
+    { to: '/admin/pages', label: 'Pages', icon: '📄', roles: ['super_admin', 'admin', 'editor'] },
     { to: '/admin/categories', label: 'Categories', icon: '🏷️', roles: ['super_admin', 'admin', 'editor'] },
     { to: '/admin/orders', label: 'Orders', icon: '🧾', roles: ['super_admin', 'admin'] },
     { to: '/admin/customers', label: 'Customers', icon: '👥', roles: ['super_admin', 'admin'] },
