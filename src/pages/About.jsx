@@ -1,43 +1,69 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
+import { supabase } from '../lib/supabaseClient'
 
 export default function About() {
+  const [content, setContent] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function fetchContent() {
+      setLoading(true)
+      const { data } = await supabase
+        .from('site_content')
+        .select('content')
+        .eq('page_key', 'about')
+        .single()
+
+      setContent(data?.content || null)
+      setLoading(false)
+    }
+
+    fetchContent()
+  }, [])
+
+  if (loading) {
+    return <div className="text-center py-24 text-navy-400">Loading...</div>
+  }
+
+  if (!content) {
+    return (
+      <div className="text-center py-24 text-navy-400">
+        About page content is not available right now.
+      </div>
+    )
+  }
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
       <h1 className="text-3xl sm:text-4xl font-serif-heading font-bold text-navy-900 mb-6 text-center">
-        About BookVault
+        {content.heading}
       </h1>
 
       <div className="prose max-w-none text-navy-700 space-y-6 leading-relaxed">
-        <p>
-          Welcome to BookVault — your trusted destination for premium eBooks and
-          insightful articles. We believe that knowledge should be accessible,
-          affordable, and beautifully presented.
-        </p>
+        {content.intro && <p>{content.intro}</p>}
+        {content.mission && <p>{content.mission}</p>}
 
-        <p>
-          Our mission is simple: to curate high-quality digital content across
-          business, self-improvement, technology, and lifestyle topics, helping
-          readers around the world learn and grow at their own pace.
-        </p>
+        {content.why_choose_us && content.why_choose_us.length > 0 && (
+          <>
+            <h2 className="text-2xl font-serif-heading font-bold text-navy-900 mt-10 mb-4">
+              Why Choose Us?
+            </h2>
+            <ul className="list-disc pl-6 space-y-2">
+              {content.why_choose_us.map((item, idx) => (
+                <li key={idx}>{item}</li>
+              ))}
+            </ul>
+          </>
+        )}
 
-        <h2 className="text-2xl font-serif-heading font-bold text-navy-900 mt-10 mb-4">
-          Why Choose Us?
-        </h2>
-        <ul className="list-disc pl-6 space-y-2">
-          <li>Carefully curated eBooks across diverse categories</li>
-          <li>Regularly updated articles with practical insights</li>
-          <li>Secure and simple purchasing experience</li>
-          <li>Instant access to your library after purchase</li>
-        </ul>
-
-        <h2 className="text-2xl font-serif-heading font-bold text-navy-900 mt-10 mb-4">
-          Our Story
-        </h2>
-        <p>
-          BookVault started with a simple idea — make great knowledge easy to
-          find and own. Today, we continue to grow our collection every day,
-          guided by our readers' feedback and curiosity.
-        </p>
+        {content.our_story && (
+          <>
+            <h2 className="text-2xl font-serif-heading font-bold text-navy-900 mt-10 mb-4">
+              Our Story
+            </h2>
+            <p>{content.our_story}</p>
+          </>
+        )}
       </div>
     </div>
   )
