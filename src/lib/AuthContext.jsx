@@ -1,153 +1,92 @@
-import React, { createContext, useContext, useState, useEffect } from 'react'
-import { supabase } from './supabaseClient'
+import { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from './supabaseClient';
 
-const AuthContext = createContext(undefined)
+const AuthContext = createContext();
+
+export function useAuth() {
+  return useContext(AuthContext);
+}
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
-  const [profile, setProfile] = useState(null)
-  const [role, setRole] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  async function loadProfile(userId) {
-    if (!userId) {
-      setProfile(null)
-      setRole(null)
-      return
-    }
-
-    const { data: profileData, error: profileError } = await supabase
-      .from('profiles')
-      .select('*, roles(name)')
-      .eq('id', userId)
-      .single()
-
-    if (profileError) {
-      console.error('Error loading profile:', profileError.message)
-      setProfile(null)
-      setRole(null)
-      return
-    }
-
-    setProfile(profileData)
-    setRole(profileData?.roles?.name || null)
-  }
-
-  async function refreshProfile() {
-    if (user?.id) {
-      await loadProfile(user.id)
-    }
-  }
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let mounted = true
+    let mounted = true;
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!mounted) return
-      setUser(session?.user || null)
+    async function init() {
+      const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        await loadProfile(session.user.id)
-      }
-      setLoading(false)
-    })
-
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setUser(session?.user || null)
-      if (session?.user) {
-        await loadProfile(session.user.id)
+        await loadUserProfile(session.user, mounted);
       } else {
-        setProfile(null)
-        setRole(null)
+        setLoading(false);
       }
-    })
+    }
+
+    init();
+
+    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user) {
+        await loadUserProfile(session.user, mounted);
+      } else {
+        setUser(null);
+        setProfile(null);
+        setLoading(false);
+      }
+    });
 
     return () => {
-      mounted = false
-      authListener?.subscription?.unsubscribe()
+      mounted = false;
+      listener?.subscription?.unsubscribe();
+    };
+  }, []);
+
+  async function loadUserProfile(authUser, mounted = true) {
+    const { data: profileData, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, email, is_active, role_id, roles ( name )')
+      .eq('id', authUser.id)
+      .single();
+
+    if (!mounted) return;
+
+    if (error || !profileData) {
+      setUser(authUser);
+      setProfile(null);
+      setLoading(false);
+      return;
     }
-  }, [])
 
-  // Customer OTP flow: Step 1 - send a 6-digit code to email
-  async function sendOtp(email, fullName) {
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        shouldCreateUser: true,
-        data: fullName ? { full_name: fullName } : undefined,
-      },
-    })
-    if (error) throw error
-    return true
-  }
+    if (profileData.is_active === false) {
+      await supabase.auth.signOut();
+      setUser(null);
+      setProfile(null);
+      setLoading(false);
+      alert('Aapka account disable kar diya gaya hai. Kripya support se contact karein.');
+      return;
+    }
 
-  // Customer OTP flow: Step 2 - verify the 6-digit code
-  async function verifyOtp(email, token) {
-    const { data, error } = await supabase.auth.verifyOtp({
-      email,
-      token,
-      type: 'email',
-    })
-    if (error) throw error
-    return data
-  }
-
-  // Staff login: email + password
-  async function signIn(email, password) {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) throw error
-    return data
+    setUser(authUser);
+    setProfile(profileData);
+    setLoading(false);
   }
 
   async function signOut() {
-    const { error } = await supabase.auth.signOut()
-    if (error) throw error
-    setUser(null)
-    setProfile(null)
-    setRole(null)
+    await supabase.auth.signOut();
+    setUser(null);
+    setProfile(null);
   }
-
-  async function resetPassword(email) {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    })
-    if (error) throw error
-    return true
-  }
-
-  async function updatePassword(newPassword) {
-    const { error } = await supabase.auth.updateUser({ password: newPassword })
-    if (error) throw error
-    return true
-  }
-
-  const isStaff = role === 'super_admin' || role === 'admin' || role === 'editor'
-  const isAdminOrSuper = role === 'super_admin' || role === 'admin'
-  const isSuperAdmin = role === 'super_admin'
 
   const value = {
     user,
     profile,
-    role,
     loading,
-    sendOtp,
-    verifyOtp,
-    signIn,
     signOut,
-    resetPassword,
-    updatePassword,
-    isStaff,
-    isAdminOrSuper,
-    isSuperAdmin,
-    refreshProfile,
-  }
+    isStaff: ['super_admin', 'admin', 'editor'].includes(profile?.roles?.name),
+    isSuperAdmin: profile?.roles?.name === 'super_admin',
+    isAdminOrSuper: ['super_admin', 'admin'].includes(profile?.roles?.name),
+  };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext)
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
-  }
-  return context
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
