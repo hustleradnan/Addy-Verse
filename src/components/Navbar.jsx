@@ -1,11 +1,30 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
+import { supabase } from '../lib/supabaseClient'
 
 export default function Navbar() {
   const { user, profile, signOut, isStaff } = useAuth()
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [siteName, setSiteName] = useState('BookVault')
+  const [logoEmoji, setLogoEmoji] = useState('📚')
+
+  useEffect(() => {
+    async function fetchSiteSettings() {
+      const { data } = await supabase
+        .from('site_content')
+        .select('content')
+        .eq('page_key', 'general')
+        .single()
+
+      if (data?.content) {
+        if (data.content.site_name) setSiteName(data.content.site_name)
+        if (data.content.logo_emoji) setLogoEmoji(data.content.logo_emoji)
+      }
+    }
+    fetchSiteSettings()
+  }, [])
 
   async function handleLogout() {
     await signOut()
@@ -26,7 +45,7 @@ export default function Navbar() {
       <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link to="/" className="flex items-center gap-2 text-xl font-serif-heading font-bold text-gold-400">
-            📚 BookVault
+            {logoEmoji} {siteName}
           </Link>
 
           <div className="hidden md:flex items-center gap-6">
