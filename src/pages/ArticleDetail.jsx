@@ -1,108 +1,117 @@
-import React, { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import { supabase } from '../lib/supabaseClient'
+import { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { supabase } from '../lib/supabaseClient';
 
 export default function ArticleDetail() {
-  const { slug } = useParams()
-  const [article, setArticle] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [notFound, setNotFound] = useState(false)
+  const { slug } = useParams();
+  const [article, setArticle] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    async function fetchArticle() {
-      setLoading(true)
-      setNotFound(false)
+    fetchArticle();
+  }, [slug]);
 
-      const { data, error } = await supabase
-        .from('articles')
-        .select('*, categories(name)')
-        .eq('slug', slug)
-        .eq('is_published', true)
-        .single()
+  useEffect(() => {
+    if (article) {
+      document.title = article.seo_title || article.title;
 
-      if (error || !data) {
-        setNotFound(true)
-        setArticle(null)
-      } else {
-        setArticle({ ...data, category_name: data.categories?.name })
-
-        // Set SEO meta tags dynamically
-        if (data.seo_title) document.title = data.seo_title
-        if (data.seo_description) {
-          let metaDesc = document.querySelector('meta[name="description"]')
-          if (metaDesc) metaDesc.setAttribute('content', data.seo_description)
-        }
+      let metaDesc = document.querySelector('meta[name="description"]');
+      if (!metaDesc) {
+        metaDesc = document.createElement('meta');
+        metaDesc.setAttribute('name', 'description');
+        document.head.appendChild(metaDesc);
       }
-
-      setLoading(false)
+      metaDesc.setAttribute(
+        'content',
+        article.seo_description || article.title
+      );
     }
+  }, [article]);
 
-    fetchArticle()
+  async function fetchArticle() {
+    setLoading(true);
+    setError('');
 
-    return () => {
-      document.title = 'BookVault - Premium eBooks & Articles'
+    const { data, error } = await supabase
+      .from('articles')
+      .select('*, categories ( name, slug )')
+      .eq('slug', slug)
+      .eq('is_published', true)
+      .single();
+
+    if (error || !data) {
+      setError('Ye article nahi mila ya abhi published nahi hai.');
+    } else {
+      setArticle(data);
     }
-  }, [slug])
+    setLoading(false);
+  }
+
+  function formatDate(dateStr) {
+    return new Date(dateStr).toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  }
 
   if (loading) {
-    return <div className="text-center py-24 text-navy-400">Loading...</div>
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-16 text-center text-navy-500">
+        Loading...
+      </div>
+    );
   }
 
-  if (notFound || !article) {
+  if (error || !article) {
     return (
-      <div className="text-center py-24">
-        <h1 className="text-2xl font-serif-heading font-bold text-navy-900 mb-3">
-          Article Not Found
-        </h1>
-        <p className="text-navy-500 mb-6">
-          This article doesn't exist or is no longer available.
-        </p>
-        <Link to="/articles" className="text-gold-600 font-semibold hover:text-gold-700">
-          ← Back to Articles
+      <div className="max-w-3xl mx-auto px-4 py-16 text-center">
+        <p className="text-navy-700 font-medium mb-4">{error}</p>
+        <Link to="/articles" className="text-gold-600 hover:underline">
+          ← Sabhi Articles par wapas jayein
         </Link>
       </div>
-    )
+    );
   }
-
-  const formattedDate = article.created_at
-    ? new Date(article.created_at).toLocaleDateString('en-IN', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      })
-    : ''
 
   return (
-    <article className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      {article.category_name && (
-        <span className="text-xs font-semibold text-gold-600 uppercase tracking-wide">
-          {article.category_name}
-        </span>
+    <div className="max-w-3xl mx-auto px-4 py-12">
+      {article.categories && (
+        <Link
+          to={`/categories/${article.categories.slug}`}
+          className="inline-block text-xs font-medium text-gold-600 bg-gold-50 px-3 py-1 rounded-full mb-4 hover:bg-gold-100 transition"
+        >
+          {article.categories.name}
+        </Link>
       )}
-      <h1 className="text-3xl sm:text-4xl font-serif-heading font-bold text-navy-900 mt-2 mb-3">
+
+      <h1 className="text-3xl sm:text-4xl font-serif font-bold text-navy-900 mb-3 leading-tight">
         {article.title}
       </h1>
-      {formattedDate && <p className="text-navy-400 mb-8">{formattedDate}</p>}
 
-      {article.featured_image_url && (
-        <div className="aspect-[16/9] bg-navy-100 rounded-xl overflow-hidden mb-8 shadow-card">
-          <img
-            src={article.featured_image_url}
-            alt={article.title}
-            className="w-full h-full object-cover"
-          />
-        </div>
+      <p className="text-navy-400 text-sm mb-8">
+        {formatDate(article.created_at)}
+      </p>
+
+      {article.featured_image && (
+        <img
+          src={article.featured_image}
+          alt={article.title}
+          className="w-full h-72 sm:h-96 object-cover rounded-xl shadow-card mb-8"
+        />
       )}
 
-      <div className="prose prose-navy max-w-none text-navy-700 whitespace-pre-line leading-relaxed">
-        {article.content}
-      </div>
+      <div
+        className="article-content"
+        dangerouslySetInnerHTML={{ __html: article.content }}
+      />
 
       <div className="mt-12 pt-6 border-t border-navy-100">
-        <Link to="/articles" className="text-gold-600 font-semibold hover:text-gold-700">
-          ← Back to Articles
+        <Link to="/articles" className="text-gold-600 hover:underline text-sm font-medium">
+          ← Sabhi Articles dekhein
         </Link>
       </div>
-    </article>
-  )
+    </div>
+  );
 }
