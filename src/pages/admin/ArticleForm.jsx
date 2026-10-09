@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react'
-import { useNavigate, useParams, Link } from 'react-router-dom'
-import { supabase } from '../../lib/supabaseClient'
+import { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
+import { supabase } from '../../lib/supabaseClient';
 
 function slugify(text) {
   return text
@@ -9,297 +11,336 @@ function slugify(text) {
     .trim()
     .replace(/[^\w\s-]/g, '')
     .replace(/[\s_-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+    .replace(/^-+|-+$/g, '');
 }
 
 export default function ArticleForm() {
-  const { id } = useParams()
-  const isEdit = Boolean(id)
-  const navigate = useNavigate()
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const isEditMode = Boolean(id);
+  const quillRef = useRef(null);
 
-  const [categories, setCategories] = useState([])
-  const [loading, setLoading] = useState(isEdit)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  const [categories, setCategories] = useState([]);
+  const [title, setTitle] = useState('');
+  const [slug, setSlug] = useState('');
+  const [slugEdited, setSlugEdited] = useState(false);
+  const [categoryId, setCategoryId] = useState('');
+  const [content, setContent] = useState('');
+  const [seoTitle, setSeoTitle] = useState('');
+  const [seoDescription, setSeoDescription] = useState('');
+  const [isPublished, setIsPublished] = useState(false);
 
-  const [form, setForm] = useState({
-    title: '',
-    slug: '',
-    content: '',
-    category_id: '',
-    seo_title: '',
-    seo_description: '',
-    is_published: false,
-  })
+  const [featuredImageFile, setFeaturedImageFile] = useState(null);
+  const [featuredImagePreview, setFeaturedImagePreview] = useState('');
+  const [existingImageUrl, setExistingImageUrl] = useState('');
 
-  const [imageFile, setImageFile] = useState(null)
-  const [imagePreview, setImagePreview] = useState('')
-  const [existingImageUrl, setExistingImageUrl] = useState('')
-
-  useEffect(() => {
-    async function fetchCategories() {
-      const { data } = await supabase.from('categories').select('*').order('name')
-      setCategories(data || [])
-    }
-    fetchCategories()
-  }, [])
+  const [loading, setLoading] = useState(isEditMode);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!isEdit) return
+    fetchCategories();
+    if (isEditMode) fetchArticle();
+  }, [id]);
 
-    async function fetchArticle() {
-      setLoading(true)
-      const { data, error } = await supabase.from('articles').select('*').eq('id', id).single()
+  async function fetchCategories() {
+    const { data } = await supabase.from('categories').select('id, name').order('name');
+    setCategories(data || []);
+  }
 
-      if (error || !data) {
-        setError('Failed to load article.')
-      } else {
-        setForm({
-          title: data.title || '',
-          slug: data.slug || '',
-          content: data.content || '',
-          category_id: data.category_id || '',
-          seo_title: data.seo_title || '',
-          seo_description: data.seo_description || '',
-          is_published: data.is_published || false,
-        })
-        setExistingImageUrl(data.featured_image_url || '')
-      }
-      setLoading(false)
+  async function fetchArticle() {
+    setLoading(true);
+    const { data, error } = await supabase.from('articles').select('*').eq('id', id).single();
+
+    if (error) {
+      setError('Article load karne mein error: ' + error.message);
+    } else if (data) {
+      setTitle(data.title || '');
+      setSlug(data.slug || '');
+      setSlugEdited(true);
+      setCategoryId(data.category_id || '');
+      setContent(data.content || '');
+      setSeoTitle(data.seo_title || '');
+      setSeoDescription(data.seo_description || '');
+      setIsPublished(data.is_published || false);
+      setExistingImageUrl(data.featured_image || '');
     }
+    setLoading(false);
+  }
 
-    fetchArticle()
-  }, [id, isEdit])
-
-  function handleChange(e) {
-    const { name, value, type, checked } = e.target
-    setForm((prev) => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value,
-    }))
-
-    if (name === 'title' && !isEdit) {
-      setForm((prev) => ({ ...prev, slug: slugify(value) }))
+  function handleTitleChange(value) {
+    setTitle(value);
+    if (!slugEdited) {
+      setSlug(slugify(value));
     }
   }
 
-  function handleImageChange(e) {
-    const file = e.target.files[0]
+  function handleFeaturedImageChange(e) {
+    const file = e.target.files[0];
     if (file) {
-      setImageFile(file)
-      setImagePreview(URL.createObjectURL(file))
+      setFeaturedImageFile(file);
+      setFeaturedImagePreview(URL.createObjectURL(file));
     }
   }
+
+  // Custom image handler for Quill toolbar — uploads image to Supabase Storage
+  function imageHandler() {
+    const input = document.createElement('input');
+    input.setAttribute('type', 'file');
+    input.setAttribute('accept', 'image/*');
+    input.click();
+
+    input.onchange = async () => {
+      const file = input.files[0];
+      if (!file) return;
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `inline-${Date.now()}.${fileExt}`;
+      const filePath = `article-content/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('article-images')
+        .upload(filePath, file);
+
+      if (uploadError) {
+        alert('Image upload failed: ' + uploadError.message);
+        return;
+      }
+
+      const { data: urlData } = supabase.storage.from('article-images').getPublicUrl(filePath);
+      const imageUrl = urlData.publicUrl;
+
+      const editor = quillRef.current.getEditor();
+      const range = editor.getSelection(true);
+      editor.insertEmbed(range.index, 'image', imageUrl);
+      editor.setSelection(range.index + 1);
+    };
+  }
+
+  const quillModules = {
+    toolbar: {
+      container: [
+        [{ header: [1, 2, 3, false] }],
+        ['bold', 'italic', 'underline', 'strike'],
+        [{ list: 'ordered' }, { list: 'bullet' }],
+        ['link', 'image'],
+        ['blockquote'],
+        ['clean'],
+      ],
+      handlers: {
+        image: imageHandler,
+      },
+    },
+  };
 
   async function handleSubmit(e) {
-    e.preventDefault()
-    setError('')
+    e.preventDefault();
+    setError('');
 
-    if (!form.title.trim() || !form.slug.trim() || !form.content.trim()) {
-      setError('Title, slug, and content are required.')
-      return
+    if (!title.trim() || !slug.trim()) {
+      setError('Title aur Slug zaroori hain.');
+      return;
     }
 
-    setSaving(true)
+    setSaving(true);
+
+    let featuredImageUrl = existingImageUrl;
 
     try {
-      let imageUrl = existingImageUrl
+      if (featuredImageFile) {
+        const fileExt = featuredImageFile.name.split('.').pop();
+        const fileName = `${slug}-${Date.now()}.${fileExt}`;
+        const filePath = `covers/${fileName}`;
 
-      if (imageFile) {
-        const ext = imageFile.name.split('.').pop()
-        const fileName = `${form.slug}-${Date.now()}.${ext}`
         const { error: uploadError } = await supabase.storage
           .from('article-images')
-          .upload(fileName, imageFile, { upsert: true })
+          .upload(filePath, featuredImageFile);
 
-        if (uploadError) throw uploadError
+        if (uploadError) throw new Error('Image upload failed: ' + uploadError.message);
 
-        const { data: publicUrlData } = supabase.storage
-          .from('article-images')
-          .getPublicUrl(fileName)
-
-        imageUrl = publicUrlData.publicUrl
+        const { data: urlData } = supabase.storage.from('article-images').getPublicUrl(filePath);
+        featuredImageUrl = urlData.publicUrl;
       }
 
-      const payload = {
-        title: form.title.trim(),
-        slug: form.slug.trim(),
-        content: form.content,
-        category_id: form.category_id || null,
-        seo_title: form.seo_title.trim() || null,
-        seo_description: form.seo_description.trim() || null,
-        is_published: form.is_published,
-        featured_image_url: imageUrl || null,
-        updated_at: new Date().toISOString(),
-      }
+      const articleData = {
+        title: title.trim(),
+        slug: slug.trim(),
+        category_id: categoryId || null,
+        content,
+        seo_title: seoTitle.trim() || null,
+        seo_description: seoDescription.trim() || null,
+        is_published: isPublished,
+        featured_image: featuredImageUrl || null,
+      };
 
-      if (isEdit) {
-        const { error: updateError } = await supabase.from('articles').update(payload).eq('id', id)
-        if (updateError) throw updateError
+      if (isEditMode) {
+        const { error: updateError } = await supabase
+          .from('articles')
+          .update(articleData)
+          .eq('id', id);
+        if (updateError) throw new Error(updateError.message);
       } else {
-        const { error: insertError } = await supabase.from('articles').insert([payload])
-        if (insertError) throw insertError
+        const { error: insertError } = await supabase.from('articles').insert(articleData);
+        if (insertError) throw new Error(insertError.message);
       }
 
-      navigate('/admin/articles')
+      navigate('/admin/articles');
     } catch (err) {
-      setError(err.message || 'Something went wrong while saving.')
-    } finally {
-      setSaving(false)
+      setError(err.message);
     }
+
+    setSaving(false);
   }
 
   if (loading) {
-    return <div className="text-center py-16 text-navy-400">Loading...</div>
+    return <p className="text-navy-500">Loading...</p>;
   }
 
   return (
-    <div className="max-w-3xl">
-      <div className="flex items-center gap-3 mb-6">
-        <Link to="/admin/articles" className="text-navy-400 hover:text-navy-600">
-          ← Back
-        </Link>
-        <h1 className="text-2xl font-serif-heading font-bold text-navy-900">
-          {isEdit ? 'Edit Article' : 'Add New Article'}
-        </h1>
-      </div>
+    <div>
+      <h1 className="text-2xl font-serif font-bold text-navy-900 mb-6">
+        {isEditMode ? 'Article Edit Karein' : 'Naya Article Add Karein'}
+      </h1>
 
       {error && (
-        <div className="bg-red-50 text-red-700 text-sm px-4 py-3 rounded-lg mb-4">{error}</div>
+        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+          {error}
+        </div>
       )}
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-card p-6 space-y-5">
-        <div>
-          <label className="block text-sm font-medium text-navy-700 mb-1">Title *</label>
-          <input
-            type="text"
-            name="title"
-            value={form.title}
-            onChange={handleChange}
-            required
-            className="w-full px-4 py-2.5 rounded-lg border border-navy-200 focus:outline-none focus:ring-2 focus:ring-gold-400"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-navy-700 mb-1">Slug (URL) *</label>
-          <input
-            type="text"
-            name="slug"
-            value={form.slug}
-            onChange={handleChange}
-            required
-            className="w-full px-4 py-2.5 rounded-lg border border-navy-200 focus:outline-none focus:ring-2 focus:ring-gold-400"
-          />
-          <p className="text-xs text-navy-400 mt-1">
-            Website link will be: /articles/{form.slug || 'your-slug'}
-          </p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-navy-700 mb-1">Category</label>
-          <select
-            name="category_id"
-            value={form.category_id}
-            onChange={handleChange}
-            className="w-full px-4 py-2.5 rounded-lg border border-navy-200 focus:outline-none focus:ring-2 focus:ring-gold-400"
-          >
-            <option value="">— Select —</option>
-            {categories.map((cat) => (
-              <option key={cat.id} value={cat.id}>
-                {cat.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-navy-700 mb-1">Content *</label>
-          <textarea
-            name="content"
-            value={form.content}
-            onChange={handleChange}
-            rows={10}
-            required
-            className="w-full px-4 py-2.5 rounded-lg border border-navy-200 focus:outline-none focus:ring-2 focus:ring-gold-400"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-navy-700 mb-1">Featured Image</label>
-          {(imagePreview || existingImageUrl) && (
-            <img
-              src={imagePreview || existingImageUrl}
-              alt="Preview"
-              className="w-full max-w-xs h-32 object-cover rounded-lg mb-2 border border-navy-200"
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="bg-white rounded-xl shadow-card p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-navy-700 mb-1">Title *</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => handleTitleChange(e.target.value)}
+              className="w-full px-4 py-2 border border-navy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
             />
-          )}
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleImageChange}
-            className="block w-full text-sm text-navy-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-navy-100 file:text-navy-700 hover:file:bg-navy-200"
-          />
-        </div>
+          </div>
 
-        <div className="border-t border-navy-100 pt-5">
-          <h3 className="text-sm font-semibold text-navy-900 mb-3">SEO Settings (Optional)</h3>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-navy-700 mb-1">SEO Title</label>
-              <input
-                type="text"
-                name="seo_title"
-                value={form.seo_title}
-                onChange={handleChange}
-                placeholder="Defaults to article title if left blank"
-                className="w-full px-4 py-2.5 rounded-lg border border-navy-200 focus:outline-none focus:ring-2 focus:ring-gold-400"
+          <div>
+            <label className="block text-sm font-medium text-navy-700 mb-1">Slug (URL) *</label>
+            <input
+              type="text"
+              value={slug}
+              onChange={(e) => {
+                setSlug(slugify(e.target.value));
+                setSlugEdited(true);
+              }}
+              className="w-full px-4 py-2 border border-navy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
+            />
+            <p className="text-xs text-navy-400 mt-1">URL hoga: /articles/{slug || '...'}</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-navy-700 mb-1">Category</label>
+            <select
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              className="w-full px-4 py-2 border border-navy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
+            >
+              <option value="">-- Select Category --</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-navy-700 mb-1">Featured Image</label>
+            {(featuredImagePreview || existingImageUrl) && (
+              <img
+                src={featuredImagePreview || existingImageUrl}
+                alt="Preview"
+                className="w-40 h-28 object-cover rounded-lg mb-2 border border-navy-100"
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-navy-700 mb-1">SEO Description</label>
-              <textarea
-                name="seo_description"
-                value={form.seo_description}
-                onChange={handleChange}
-                rows={2}
-                placeholder="A short summary shown in search engine results"
-                className="w-full px-4 py-2.5 rounded-lg border border-navy-200 focus:outline-none focus:ring-2 focus:ring-gold-400"
-              />
-            </div>
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleFeaturedImageChange}
+              className="block text-sm text-navy-600"
+            />
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="is_published"
-            name="is_published"
-            checked={form.is_published}
-            onChange={handleChange}
-            className="w-4 h-4"
+        <div className="bg-white rounded-xl shadow-card p-6">
+          <label className="block text-sm font-medium text-navy-700 mb-2">Content *</label>
+          <ReactQuill
+            ref={quillRef}
+            theme="snow"
+            value={content}
+            onChange={setContent}
+            modules={quillModules}
+            className="bg-white"
           />
-          <label htmlFor="is_published" className="text-sm font-medium text-navy-700">
-            Publish this article (visible to visitors)
+          <p className="text-xs text-navy-400 mt-2">
+            Toolbar se Bold, Italic, Headings, Lists, Link, aur Image insert kar sakte hain.
+          </p>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-card p-6 space-y-4">
+          <h3 className="text-sm font-semibold text-navy-900">SEO Settings (Optional)</h3>
+          <div>
+            <label className="block text-sm font-medium text-navy-700 mb-1">SEO Title</label>
+            <input
+              type="text"
+              value={seoTitle}
+              onChange={(e) => setSeoTitle(e.target.value)}
+              className="w-full px-4 py-2 border border-navy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-navy-700 mb-1">SEO Description</label>
+            <textarea
+              rows={2}
+              value={seoDescription}
+              onChange={(e) => setSeoDescription(e.target.value)}
+              className="w-full px-4 py-2 border border-navy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
+            />
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-card p-6 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-navy-900">Publish Status</p>
+            <p className="text-xs text-navy-400">
+              Published hone par ye article public website pe dikhega.
+            </p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isPublished}
+              onChange={(e) => setIsPublished(e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-navy-200 rounded-full peer peer-checked:bg-gold-500 transition"></div>
+            <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition peer-checked:translate-x-5"></div>
           </label>
         </div>
 
-        <div className="flex gap-3 pt-4">
+        <div className="flex gap-3">
           <button
             type="submit"
             disabled={saving}
-            className="bg-gold-500 hover:bg-gold-600 text-navy-950 font-semibold px-6 py-3 rounded-lg transition-colors disabled:opacity-60"
+            className="bg-navy-900 hover:bg-navy-800 text-white px-6 py-2.5 rounded-lg font-medium transition disabled:opacity-50"
           >
-            {saving ? 'Saving...' : isEdit ? 'Update Article' : 'Create Article'}
+            {saving ? 'Saving...' : isEditMode ? 'Update Article' : 'Create Article'}
           </button>
-          <Link
-            to="/admin/articles"
-            className="bg-navy-100 hover:bg-navy-200 text-navy-700 font-medium px-6 py-3 rounded-lg transition-colors"
+          <button
+            type="button"
+            onClick={() => navigate('/admin/articles')}
+            className="bg-navy-100 hover:bg-navy-200 text-navy-700 px-6 py-2.5 rounded-lg font-medium transition"
           >
             Cancel
-          </Link>
+          </button>
         </div>
       </form>
     </div>
-  )
+  );
 }
