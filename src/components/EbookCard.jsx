@@ -10,9 +10,9 @@ export default function EbookCard({ ebook }) {
       className="group bg-white rounded-xl overflow-hidden shadow-card hover:shadow-cardHover transition-all duration-300 flex flex-col"
     >
       <div className="aspect-[3/4] bg-navy-100 overflow-hidden relative">
-        {ebook.cover_image_url ? (
+        {ebook.cover_image ? (
           <img
-            src={ebook.cover_image_url}
+            src={ebook.cover_image}
             alt={ebook.title}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             loading="lazy"
