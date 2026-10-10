@@ -9,6 +9,7 @@ export default function AdminLogin() {
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -71,14 +72,24 @@ export default function AdminLogin() {
             <label className="block text-sm font-medium text-navy-200 mb-1">
               Password
             </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              className="w-full px-4 py-2.5 rounded-lg bg-navy-800 border border-navy-700 text-white placeholder-navy-500 focus:outline-none focus:ring-2 focus:ring-gold-400"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                className="w-full px-4 py-2.5 pr-12 rounded-lg bg-navy-800 border border-navy-700 text-white placeholder-navy-500 focus:outline-none focus:ring-2 focus:ring-gold-400"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-navy-400 hover:text-gold-400 text-sm"
+                tabIndex={-1}
+              >
+                {showPassword ? '🙈' : '👁️'}
+              </button>
+            </div>
           </div>
           <button
             type="submit"
