@@ -94,8 +94,8 @@ export default function AdminArticles() {
                   <tr key={article.id} className="hover:bg-navy-50/50">
                     <td className="px-5 py-3">
                       <div className="w-14 h-10 bg-navy-100 rounded overflow-hidden">
-                        {article.featured_image_url ? (
-                          <img src={article.featured_image_url} alt={article.title} className="w-full h-full object-cover" />
+                        {article.featured_image ? (
+                          <img src={article.featured_image} alt={article.title} className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-navy-400 text-xs">📰</div>
                         )}
@@ -124,7 +124,7 @@ export default function AdminArticles() {
                     </td>
                     <td className="px-5 py-3 text-right space-x-3">
                       <Link
-                        to={`/admin/articles/${article.id}/edit`}
+                        to={`/admin/articles/edit/${article.id}`}
                         className="text-navy-600 hover:text-gold-600 font-medium"
                       >
                         Edit
