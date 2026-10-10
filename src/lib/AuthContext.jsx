@@ -72,6 +72,17 @@ export function AuthProvider({ children }) {
     setLoading(false);
   }
 
+  async function signIn(email, password) {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      throw new Error(error.message);
+    }
+    if (data?.user) {
+      await loadUserProfile(data.user, true);
+    }
+    return data;
+  }
+
   async function signOut() {
     await supabase.auth.signOut();
     setUser(null);
@@ -82,6 +93,7 @@ export function AuthProvider({ children }) {
     user,
     profile,
     loading,
+    signIn,
     signOut,
     isStaff: ['super_admin', 'admin', 'editor'].includes(profile?.roles?.name),
     isSuperAdmin: profile?.roles?.name === 'super_admin',
