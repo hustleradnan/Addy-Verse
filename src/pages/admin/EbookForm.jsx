@@ -155,10 +155,7 @@ export default function EbookForm() {
       };
 
       if (isEditMode) {
-        const { error: updateError } = await supabase
-          .from('ebooks')
-          .update(ebookData)
-          .eq('id', id);
+        const { error: updateError } = await supabase.from('ebooks').update(ebookData).eq('id', id);
         if (updateError) throw new Error(updateError.message);
       } else {
         const { error: insertError } = await supabase.from('ebooks').insert(ebookData);
@@ -193,98 +190,49 @@ export default function EbookForm() {
         <div className="bg-white rounded-xl shadow-card p-6 space-y-4">
           <div>
             <label className="block text-sm font-medium text-navy-700 mb-1">Title *</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => handleTitleChange(e.target.value)}
-              className="w-full px-4 py-2 border border-navy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
-            />
+            <input type="text" value={title} onChange={(e) => handleTitleChange(e.target.value)} className="w-full px-4 py-2 border border-navy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400" />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-navy-700 mb-1">Slug (URL) *</label>
-            <input
-              type="text"
-              value={slug}
-              onChange={(e) => {
-                setSlug(slugify(e.target.value));
-                setSlugEdited(true);
-              }}
-              className="w-full px-4 py-2 border border-navy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
-            />
+            <input type="text" value={slug} onChange={(e) => { setSlug(slugify(e.target.value)); setSlugEdited(true); }} className="w-full px-4 py-2 border border-navy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400" />
             <p className="text-xs text-navy-400 mt-1">URL hoga: /ebooks/{slug || '...'}</p>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-navy-700 mb-1">Author *</label>
-            <input
-              type="text"
-              value={author}
-              onChange={(e) => setAuthor(e.target.value)}
-              className="w-full px-4 py-2 border border-navy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
-            />
+            <input type="text" value={author} onChange={(e) => setAuthor(e.target.value)} className="w-full px-4 py-2 border border-navy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400" />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-navy-700 mb-1">Category</label>
-            <select
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              className="w-full px-4 py-2 border border-navy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
-            >
+            <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="w-full px-4 py-2 border border-navy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400">
               <option value="">-- Select Category --</option>
               {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name}
-                </option>
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
               ))}
             </select>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-navy-700 mb-1">Description</label>
-            <textarea
-              rows={5}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-4 py-2 border border-navy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
-            />
+            <textarea rows={5} value={description} onChange={(e) => setDescription(e.target.value)} className="w-full px-4 py-2 border border-navy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400" />
           </div>
         </div>
 
         <div className="bg-white rounded-xl shadow-card p-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-navy-700 mb-1">Price (₹) *</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              className="w-full px-4 py-2 border border-navy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
-            />
+            <input type="number" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} className="w-full px-4 py-2 border border-navy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400" />
             <p className="text-xs text-navy-400 mt-1">0 rakhein agar eBook free hai.</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-navy-700 mb-1">Discount Price (₹)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={discountPrice}
-              onChange={(e) => setDiscountPrice(e.target.value)}
-              className="w-full px-4 py-2 border border-navy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
-            />
+            <input type="number" min="0" step="0.01" value={discountPrice} onChange={(e) => setDiscountPrice(e.target.value)} className="w-full px-4 py-2 border border-navy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400" />
           </div>
           <div>
             <label className="block text-sm font-medium text-navy-700 mb-1">Page Count</label>
-            <input
-              type="number"
-              min="0"
-              value={pageCount}
-              onChange={(e) => setPageCount(e.target.value)}
-              className="w-full px-4 py-2 border border-navy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
-            />
+            <input type="number" min="0" value={pageCount} onChange={(e) => setPageCount(e.target.value)} className="w-full px-4 py-2 border border-navy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400" />
           </div>
         </div>
 
@@ -292,74 +240,41 @@ export default function EbookForm() {
           <div>
             <label className="block text-sm font-medium text-navy-700 mb-1">Cover Image</label>
             {(coverPreview || existingCoverUrl) && (
-              <img
-                src={coverPreview || existingCoverUrl}
-                alt="Cover Preview"
-                className="w-32 h-44 object-cover rounded-lg mb-2 border border-navy-100"
-              />
+              <img src={coverPreview || existingCoverUrl} alt="Cover Preview" className="w-32 h-44 object-cover rounded-lg mb-2 border border-navy-100" />
             )}
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleCoverChange}
-              className="block text-sm text-navy-600"
-            />
+            <input type="file" accept="image/*" onChange={handleCoverChange} className="block text-sm text-navy-600" />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-navy-700 mb-1">eBook File (PDF)</label>
             {existingFilePath && !ebookFile && (
-              <p className="text-sm text-navy-500 mb-2">
-                Current file: {existingFilePath.split('/').pop()}
-              </p>
+              <p className="text-sm text-navy-500 mb-2">Current file: {existingFilePath.split('/').pop()}</p>
             )}
             {ebookFile && (
               <p className="text-sm text-green-600 mb-2">Nayi file select ki gayi: {ebookFile.name}</p>
             )}
-            <input
-              type="file"
-              accept=".pdf"
-              onChange={handleEbookFileChange}
-              className="block text-sm text-navy-600"
-            />
-            <p className="text-xs text-navy-400 mt-1">
-              Ye file private storage mein save hogi — kabhi public URL nahi milega (Phase 4 mein secure download setup hoga).
-            </p>
+            <input type="file" accept=".pdf" onChange={handleEbookFileChange} className="block text-sm text-navy-600" />
+            <p className="text-xs text-navy-400 mt-1">Ye file private storage mein save hogi — kabhi public URL nahi milega (Phase 4 mein secure download setup hoga).</p>
           </div>
         </div>
 
         <div className="bg-white rounded-xl shadow-card p-6 flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-navy-900">Publish Status</p>
-            <p className="text-xs text-navy-400">
-              Published hone par ye eBook public website pe dikhega.
-            </p>
+            <p className="text-xs text-navy-400">Published hone par ye eBook public website pe dikhega.</p>
           </div>
           <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={isPublished}
-              onChange={(e) => setIsPublished(e.target.checked)}
-              className="sr-only peer"
-            />
+            <input type="checkbox" checked={isPublished} onChange={(e) => setIsPublished(e.target.checked)} className="sr-only peer" />
             <div className="w-11 h-6 bg-navy-200 rounded-full peer peer-checked:bg-gold-500 transition"></div>
             <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition peer-checked:translate-x-5"></div>
           </label>
         </div>
 
         <div className="flex gap-3">
-          <button
-            type="submit"
-            disabled={saving}
-            className="bg-navy-900 hover:bg-navy-800 text-white px-6 py-2.5 rounded-lg font-medium transition disabled:opacity-50"
-          >
+          <button type="submit" disabled={saving} className="bg-navy-900 hover:bg-navy-800 text-white px-6 py-2.5 rounded-lg font-medium transition disabled:opacity-50">
             {saving ? 'Saving...' : isEditMode ? 'Update eBook' : 'Create eBook'}
           </button>
-          <button
-            type="button"
-            onClick={() => navigate('/admin/ebooks')}
-            className="bg-navy-100 hover:bg-navy-200 text-navy-700 px-6 py-2.5 rounded-lg font-medium transition"
-          >
+          <button type="button" onClick={() => navigate('/admin/ebooks')} className="bg-navy-100 hover:bg-navy-200 text-navy-700 px-6 py-2.5 rounded-lg font-medium transition">
             Cancel
           </button>
         </div>
