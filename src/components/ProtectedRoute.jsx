@@ -2,8 +2,9 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 
 export default function ProtectedRoute({ children, allowedRoles, redirectTo = '/login' }) {
-  const { user, role, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
   const location = useLocation();
+  const role = profile?.roles?.name;
 
   if (loading) {
     return (
