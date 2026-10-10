@@ -15,6 +15,7 @@ export default function AdminUsers() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState('editor');
   const [creating, setCreating] = useState(false);
 
@@ -210,13 +211,23 @@ export default function AdminUsers() {
           </div>
           <div>
             <label className="block text-sm font-medium text-navy-700 mb-1">Password *</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Kam se kam 8 characters"
-              className="w-full px-4 py-2 border border-navy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Kam se kam 8 characters"
+                className="w-full px-4 py-2 pr-12 border border-navy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-navy-400 hover:text-navy-600 text-sm"
+                tabIndex={-1}
+              >
+                {showPassword ? '🙈' : '👁️'}
+              </button>
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-navy-700 mb-1">Role *</label>
