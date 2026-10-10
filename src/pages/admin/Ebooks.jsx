@@ -94,8 +94,8 @@ export default function AdminEbooks() {
                   <tr key={ebook.id} className="hover:bg-navy-50/50">
                     <td className="px-5 py-3">
                       <div className="w-10 h-14 bg-navy-100 rounded overflow-hidden">
-                        {ebook.cover_image_url ? (
-                          <img src={ebook.cover_image_url} alt={ebook.title} className="w-full h-full object-cover" />
+                        {ebook.cover_image ? (
+                          <img src={ebook.cover_image} alt={ebook.title} className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-navy-400 text-xs">📖</div>
                         )}
@@ -111,41 +111,4 @@ export default function AdminEbooks() {
                         </>
                       ) : (
                         <span className="font-medium">₹{ebook.price}</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3">
-                      <button
-                        onClick={() => togglePublish(ebook)}
-                        className={`text-xs font-semibold px-3 py-1 rounded-full ${
-                          ebook.is_published
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-navy-100 text-navy-500'
-                        }`}
-                      >
-                        {ebook.is_published ? 'Published' : 'Draft'}
-                      </button>
-                    </td>
-                    <td className="px-5 py-3 text-right space-x-3">
-                      <Link
-                        to={`/admin/ebooks/${ebook.id}/edit`}
-                        className="text-navy-600 hover:text-gold-600 font-medium"
-                      >
-                        Edit
-                      </Link>
-                      <button
-                        onClick={() => handleDelete(ebook)}
-                        className="text-red-500 hover:text-red-700 font-medium"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
+                      
