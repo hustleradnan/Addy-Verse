@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
+import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css';
 import { supabase } from '../../lib/supabaseClient';
 
 function slugify(text) {
@@ -61,6 +61,7 @@ export default function PageForm() {
     }
   }
 
+  // Custom image handler for Quill toolbar — uploads image to Supabase Storage
   function imageHandler() {
     const input = document.createElement('input');
     input.setAttribute('type', 'file');
@@ -175,7 +176,6 @@ export default function PageForm() {
               type="text"
               value={title}
               onChange={(e) => handleTitleChange(e.target.value)}
-              placeholder="e.g. Privacy Policy, FAQ, Terms & Conditions"
               className="w-full px-4 py-2 border border-navy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
             />
           </div>
@@ -236,7 +236,7 @@ export default function PageForm() {
           <div>
             <p className="text-sm font-medium text-navy-900">Publish Status</p>
             <p className="text-xs text-navy-400">
-              Published hone par ye page public website pe dikhega.
+              Published hone par ye page public website pe (/pages/{slug || '...'}) dikhega.
             </p>
           </div>
           <label className="relative inline-flex items-center cursor-pointer">
