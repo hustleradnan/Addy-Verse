@@ -16,9 +16,9 @@ export default function ArticleCard({ article }) {
       className="group bg-white rounded-xl overflow-hidden shadow-card hover:shadow-cardHover transition-all duration-300 flex flex-col"
     >
       <div className="aspect-[16/9] bg-navy-100 overflow-hidden">
-        {article.featured_image_url ? (
+        {article.featured_image ? (
           <img
-            src={article.featured_image_url}
+            src={article.featured_image}
             alt={article.title}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             loading="lazy"
