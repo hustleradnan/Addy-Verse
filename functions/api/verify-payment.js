@@ -64,7 +64,7 @@ export async function onRequestPost(context) {
       return new Response(JSON.stringify({ error: 'Ye order aapka nahi hai.' }), { status: 403 });
     }
 
-    if (order.status === 'completed') {
+    if (order.status === 'paid') {
       return new Response(JSON.stringify({ success: true, message: 'Order pehle se hi complete hai.' }), { status: 200 });
     }
 
@@ -80,7 +80,7 @@ export async function onRequestPost(context) {
 
     await supabaseAdmin
       .from('orders')
-      .update({ status: 'completed', updated_at: new Date().toISOString() })
+      .update({ status: 'paid', updated_at: new Date().toISOString() })
       .eq('id', order_id);
 
     await supabaseAdmin.from('payments').insert({
