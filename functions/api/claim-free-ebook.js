@@ -72,24 +72,32 @@ export async function onRequestPost(context) {
       return new Response(JSON.stringify({ error: 'Order create karne mein error: ' + orderError.message }), { status: 500 });
     }
 
-    await supabaseAdmin.from('order_items').insert({
+    const { error: itemError } = await supabaseAdmin.from('order_items').insert({
       order_id: order.id,
       ebook_id: ebook.id,
       price: 0,
       quantity: 1,
     });
 
+    if (itemError) {
+      return new Response(JSON.stringify({ error: 'Order item create karne mein error: ' + itemError.message }), { status: 500 });
+    }
+
     const downloadToken = crypto.randomUUID();
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 365);
 
-    await supabaseAdmin.from('downloads').insert({
+    const { error: downloadError } = await supabaseAdmin.from('downloads').insert({
       user_id: userId,
       ebook_id: ebook.id,
       order_id: order.id,
       download_token: downloadToken,
       expires_at: expiresAt.toISOString(),
     });
+
+    if (downloadError) {
+      return new Response(JSON.stringify({ error: 'Download record create karne mein error: ' + downloadError.message }), { status: 500 });
+    }
 
     return new Response(JSON.stringify({ success: true }), { status: 200 });
   } catch (err) {
