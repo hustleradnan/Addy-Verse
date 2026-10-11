@@ -89,12 +89,30 @@ export function AuthProvider({ children }) {
     setProfile(null);
   }
 
+  async function resetPassword(email) {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  async function updatePassword(newPassword) {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
+
   const value = {
     user,
     profile,
     loading,
     signIn,
     signOut,
+    resetPassword,
+    updatePassword,
     isStaff: ['super_admin', 'admin', 'editor'].includes(profile?.roles?.name),
     isSuperAdmin: profile?.roles?.name === 'super_admin',
     isAdminOrSuper: ['super_admin', 'admin'].includes(profile?.roles?.name),
