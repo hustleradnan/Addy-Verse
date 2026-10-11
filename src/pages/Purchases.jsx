@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabaseClient'
 
 export default function Purchases() {
   const { user } = useAuth()
-  const [orders, setOrders] = useState([])
+  const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -13,15 +13,32 @@ export default function Purchases() {
       if (!user) return
       setLoading(true)
 
-      // Phase 1/2: no payments yet, so this will simply be empty.
-      // Structure is ready for Phase 3/4 to populate real purchase data.
-      const { data } = await supabase
-        .from('order_items')
-        .select('*, orders(status, created_at, total_amount), ebooks(title, slug, cover_image_url, author)')
-        .eq('orders.user_id', user.id)
-        .eq('orders.status', 'paid')
+      const { data, error } = await supabase
+        .from('orders')
+        .select('id, created_at, status, total_amount, order_items(id, ebook_id, price, ebooks(title, slug, cover_image, author))')
+        .eq('user_id', user.id)
+        .eq('status', 'paid')
+        .order('created_at', { ascending: false })
 
-      setOrders(data || [])
+      if (error) {
+        console.error('Error fetching purchases:', error.message)
+        setItems([])
+        setLoading(false)
+        return
+      }
+
+      const flatItems = []
+      ;(data || []).forEach((order) => {
+        ;(order.order_items || []).forEach((item) => {
+          flatItems.push({
+            id: item.id,
+            ebook: item.ebooks,
+            purchasedAt: order.created_at,
+          })
+        })
+      })
+
+      setItems(flatItems)
       setLoading(false)
     }
 
@@ -36,7 +53,7 @@ export default function Purchases() {
 
       {loading ? (
         <div className="text-center py-16 text-navy-400">Loading your purchases...</div>
-      ) : orders.length === 0 ? (
+      ) : items.length === 0 ? (
         <div className="bg-white rounded-xl shadow-card p-12 text-center">
           <div className="text-5xl mb-4">📭</div>
           <h2 className="text-xl font-semibold text-navy-900 mb-2">No Purchases Yet</h2>
@@ -52,16 +69,16 @@ export default function Purchases() {
         </div>
       ) : (
         <div className="space-y-4">
-          {orders.map((item) => (
+          {items.map((item) => (
             <div
               key={item.id}
               className="bg-white rounded-xl shadow-card p-5 flex flex-col sm:flex-row gap-4 items-start sm:items-center"
             >
               <div className="w-20 h-28 bg-navy-100 rounded-lg overflow-hidden flex-shrink-0">
-                {item.ebooks?.cover_image_url ? (
+                {item.ebook?.cover_image ? (
                   <img
-                    src={item.ebooks.cover_image_url}
-                    alt={item.ebooks.title}
+                    src={item.ebook.cover_image}
+                    alt={item.ebook.title}
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -71,11 +88,11 @@ export default function Purchases() {
                 )}
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-navy-900">{item.ebooks?.title}</h3>
-                <p className="text-sm text-navy-500">by {item.ebooks?.author}</p>
+                <h3 className="font-semibold text-navy-900">{item.ebook?.title}</h3>
+                <p className="text-sm text-navy-500">by {item.ebook?.author}</p>
                 <p className="text-sm text-navy-400 mt-1">
                   Purchased on{' '}
-                  {new Date(item.orders?.created_at).toLocaleDateString('en-IN', {
+                  {new Date(item.purchasedAt).toLocaleDateString('en-IN', {
                     year: 'numeric',
                     month: 'short',
                     day: 'numeric',
