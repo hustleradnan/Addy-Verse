@@ -13,6 +13,8 @@ export default function EbookDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionMessage, setActionMessage] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
     fetchEbook();
@@ -37,22 +39,169 @@ export default function EbookDetail() {
     setLoading(false);
   }
 
+  async function getAuthToken() {
+    const { data } = await supabase.auth.getSession();
+    return data?.session?.access_token;
+  }
+
+  function loadRazorpayScript() {
+    return new Promise((resolve) => {
+      if (window.Razorpay) {
+        resolve(true);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  }
+
+  async function handleGetFreeCopy() {
+    setActionMessage('');
+    setActionError('');
+    setProcessing(true);
+
+    try {
+      const token = await getAuthToken();
+      if (!token) {
+        setActionError('Session expire ho gayi hai. Dobara login karein.');
+        setProcessing(false);
+        return;
+      }
+
+      const res = await fetch('/api/claim-free-ebook', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ebook_id: ebook.id }),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        setActionError(result.error || 'Kuch galat ho gaya.');
+      } else {
+        setActionMessage('Aapne ye eBook successfully claim kar li hai! "My Purchases" page par jaakar dekhein.');
+      }
+    } catch (err) {
+      setActionError('Server error: ' + err.message);
+    }
+
+    setProcessing(false);
+  }
+
+  async function handleBuyNow() {
+    setActionMessage('');
+    setActionError('');
+    setProcessing(true);
+
+    try {
+      const token = await getAuthToken();
+      if (!token) {
+        setActionError('Session expire ho gayi hai. Dobara login karein.');
+        setProcessing(false);
+        return;
+      }
+
+      const res = await fetch('/api/create-order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ebook_id: ebook.id }),
+      });
+
+      const orderData = await res.json();
+
+      if (!res.ok) {
+        setActionError(orderData.error || 'Order create karne mein error aayi.');
+        setProcessing(false);
+        return;
+      }
+
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded) {
+        setActionError('Payment gateway load nahi ho paya. Internet check karein.');
+        setProcessing(false);
+        return;
+      }
+
+      const options = {
+        key: orderData.key_id,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: 'BookVault',
+        description: orderData.ebook_title,
+        order_id: orderData.razorpay_order_id,
+        handler: async function (response) {
+          setProcessing(true);
+          try {
+            const verifyRes = await fetch('/api/verify-payment', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                order_id: orderData.order_id,
+              }),
+            });
+
+            const verifyResult = await verifyRes.json();
+
+            if (!verifyRes.ok) {
+              setActionError(verifyResult.error || 'Payment verify nahi ho paya.');
+            } else {
+              setActionMessage('Payment successful! "My Purchases" page par jaakar apni eBook dekhein.');
+            }
+          } catch (err) {
+            setActionError('Verification error: ' + err.message);
+          }
+          setProcessing(false);
+        },
+        modal: {
+          ondismiss: function () {
+            setProcessing(false);
+          },
+        },
+        theme: {
+          color: '#0f172a',
+        },
+      };
+
+      const razorpayObject = new window.Razorpay(options);
+      razorpayObject.open();
+      setProcessing(false);
+    } catch (err) {
+      setActionError('Server error: ' + err.message);
+      setProcessing(false);
+    }
+  }
+
   function handleActionClick() {
     setActionMessage('');
+    setActionError('');
 
-    // Guest user: redirect to login, remember where to come back after login
     if (!user) {
       navigate('/login', { state: { from: `/ebooks/${slug}` } });
       return;
     }
 
-    // Logged in user: payment/download not implemented yet (Phase 3 & 4)
     const isFree = !ebook.price || Number(ebook.price) === 0;
-    setActionMessage(
-      isFree
-        ? 'Free download jald hi available hoga. Dhanyavaad!'
-        : 'Payment system jald hi available hoga. Dhanyavaad!'
-    );
+
+    if (isFree) {
+      handleGetFreeCopy();
+    } else {
+      handleBuyNow();
+    }
   }
 
   function formatPrice(price, discountPrice) {
@@ -131,9 +280,10 @@ export default function EbookDetail() {
 
           <button
             onClick={handleActionClick}
-            className="bg-gold-500 hover:bg-gold-600 text-navy-900 px-8 py-3 rounded-lg font-semibold transition shadow-card"
+            disabled={processing}
+            className="bg-gold-500 hover:bg-gold-600 text-navy-900 px-8 py-3 rounded-lg font-semibold transition shadow-card disabled:opacity-60"
           >
-            {isFree ? 'Get Free Copy' : 'Buy Now'}
+            {processing ? 'Processing...' : isFree ? 'Get Free Copy' : 'Buy Now'}
           </button>
 
           {!user && (
@@ -143,8 +293,14 @@ export default function EbookDetail() {
           )}
 
           {actionMessage && (
-            <div className="mt-4 bg-navy-50 border border-navy-200 text-navy-700 px-4 py-3 rounded-lg text-sm">
+            <div className="mt-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
               {actionMessage}
+            </div>
+          )}
+
+          {actionError && (
+            <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+              {actionError}
             </div>
           )}
 
