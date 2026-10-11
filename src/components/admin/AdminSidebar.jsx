@@ -7,6 +7,7 @@ export default function AdminSidebar() {
 
   const navItems = [
     { to: '/admin', label: 'Dashboard', icon: '📊', roles: ['super_admin', 'admin', 'editor'], end: true },
+    { to: '/admin/analytics', label: 'Analytics', icon: '📈', roles: ['super_admin', 'admin'] },
     { to: '/admin/ebooks', label: 'eBooks', icon: '📘', roles: ['super_admin', 'admin'] },
     { to: '/admin/articles', label: 'Articles', icon: '📝', roles: ['super_admin', 'admin', 'editor'] },
     { to: '/admin/pages', label: 'Pages', icon: '📄', roles: ['super_admin', 'admin', 'editor'] },
@@ -25,7 +26,6 @@ export default function AdminSidebar() {
         <h2 className="text-xl font-serif font-bold">Admin Panel</h2>
         <p className="text-navy-400 text-xs mt-1 capitalize">{roleName?.replace('_', ' ')}</p>
       </div>
-
       <nav className="flex-1 px-3 py-4 space-y-1">
         {visibleItems.map((item) => (
           <NavLink
@@ -34,9 +34,7 @@ export default function AdminSidebar() {
             end={item.end}
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition ${
-                isActive
-                  ? 'bg-gold-500 text-navy-900'
-                  : 'text-navy-200 hover:bg-navy-800 hover:text-white'
+                isActive ? 'bg-gold-500 text-navy-900' : 'text-navy-200 hover:bg-navy-800 hover:text-white'
               }`
             }
           >
@@ -45,7 +43,6 @@ export default function AdminSidebar() {
           </NavLink>
         ))}
       </nav>
-
       <div className="px-3 py-4 border-t border-navy-800">
         <button
           onClick={signOut}
