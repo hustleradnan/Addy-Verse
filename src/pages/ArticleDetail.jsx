@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
+import ShareButtons from '../components/ShareButtons';
 
 export default function ArticleDetail() {
   const { slug } = useParams();
@@ -107,7 +108,11 @@ export default function ArticleDetail() {
         dangerouslySetInnerHTML={{ __html: article.content }}
       />
 
-      <div className="mt-12 pt-6 border-t border-navy-100">
+      <div className="mt-10 pt-6 border-t border-navy-100">
+        <ShareButtons title={article.title} url={`/articles/${article.slug}`} />
+      </div>
+
+      <div className="mt-8 pt-6 border-t border-navy-100">
         <Link to="/articles" className="text-gold-600 hover:underline text-sm font-medium">
           ← Sabhi Articles dekhein
         </Link>
