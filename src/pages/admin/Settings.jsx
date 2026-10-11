@@ -12,7 +12,7 @@ export default function Settings() {
   const { isAdminOrSuper } = useAuth();
   const [activeTab, setActiveTab] = useState('general');
 
-  const [general, setGeneral] = useState({ site_name: '', logo_emoji: '', tagline: '' });
+  const [general, setGeneral] = useState({ site_name: '', logo_emoji: '', tagline: '', favicon_url: '' });
   const [about, setAbout] = useState({
     heading: '',
     intro: '',
@@ -24,6 +24,7 @@ export default function Settings() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingFavicon, setUploadingFavicon] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -50,17 +51,24 @@ export default function Settings() {
     const aboutRow = data.find((d) => d.page_key === 'about');
     const contactRow = data.find((d) => d.page_key === 'contact');
 
-    if (generalRow) setGeneral({ site_name: '', logo_emoji: '', tagline: '', ...generalRow.content });
-    if (aboutRow)
-      setAbout({
+    if (generalRow) {
+      setGeneral({ site_name: '', logo_emoji: '', tagline: '', favicon_url: '', ...generalRow.content });
+    }
+
+    if (aboutRow) {
+      const mergedAbout = {
         heading: '',
         intro: '',
         mission: '',
-        why_choose_us: [],
         our_story: '',
         ...aboutRow.content,
+      };
+      setAbout({
+        ...mergedAbout,
         why_choose_us: aboutRow.content.why_choose_us || [],
       });
+    }
+
     if (contactRow) setContact({ heading: '', intro: '', email: '', phone: '', address: '', ...contactRow.content });
 
     setLoading(false);
@@ -79,9 +87,34 @@ export default function Settings() {
     if (error) {
       setError('Save karne mein error: ' + error.message);
     } else {
-      setSuccess('Changes successfully save ho gaye!');
+      setSuccess('Changes successfully save ho gaye! Naya favicon/title dikhne ke liye page ko refresh karein.');
     }
     setSaving(false);
+  }
+
+  async function handleFaviconUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploadingFavicon(true);
+    setError('');
+
+    const fileExt = file.name.split('.').pop();
+    const fileName = `favicon-${Date.now()}.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('site-assets')
+      .upload(fileName, file, { upsert: true });
+
+    if (uploadError) {
+      setError('Favicon upload karne mein error: ' + uploadError.message);
+      setUploadingFavicon(false);
+      return;
+    }
+
+    const { data: urlData } = supabase.storage.from('site-assets').getPublicUrl(fileName);
+    setGeneral({ ...general, favicon_url: urlData.publicUrl });
+    setUploadingFavicon(false);
   }
 
   function updateWhyChooseUs(index, value) {
@@ -183,6 +216,41 @@ export default function Settings() {
                   className="w-full px-4 py-2 border border-navy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
                 />
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-navy-700 mb-1">
+                  Browser Tab Icon (Favicon / Logo)
+                </label>
+                <p className="text-xs text-navy-400 mb-2">
+                  Ye icon browser ke tab mein aur bookmark mein dikhega. Square image best rehti hai (jaise 512x512px PNG).
+                </p>
+                <div className="flex items-center gap-4">
+                  {general.favicon_url ? (
+                    <img
+                      src={general.favicon_url}
+                      alt="Current favicon"
+                      className="w-12 h-12 rounded-lg border border-navy-200 object-cover"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-lg border border-navy-200 flex items-center justify-center text-navy-300 text-xs">
+                      None
+                    </div>
+                  )}
+                  <div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFaviconUpload}
+                      disabled={uploadingFavicon}
+                      className="text-sm"
+                    />
+                    {uploadingFavicon && (
+                      <p className="text-xs text-navy-400 mt-1">Uploading...</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <button
                 onClick={() => saveSection('general', general)}
                 disabled={saving}
@@ -190,9 +258,6 @@ export default function Settings() {
               >
                 {saving ? 'Saving...' : 'Save Changes'}
               </button>
-              <p className="text-xs text-navy-400">
-                Note: Browser tab ka title (sabse upar) alag se `index.html` file mein set hota hai, isse change nahi hoga.
-              </p>
             </div>
           )}
 
