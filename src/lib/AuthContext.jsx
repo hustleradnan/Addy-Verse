@@ -42,6 +42,34 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
+  // Apply site branding (title + favicon) from DB on first load
+  useEffect(() => {
+    async function applySiteBranding() {
+      const { data } = await supabase
+        .from('site_content')
+        .select('content')
+        .eq('page_key', 'general')
+        .single();
+
+      if (data?.content) {
+        if (data.content.site_name) {
+          document.title = data.content.site_name;
+        }
+        if (data.content.favicon_url) {
+          let link = document.querySelector("link[rel~='icon']");
+          if (!link) {
+            link = document.createElement('link');
+            link.rel = 'icon';
+            document.head.appendChild(link);
+          }
+          link.href = data.content.favicon_url;
+        }
+      }
+    }
+
+    applySiteBranding();
+  }, []);
+
   async function loadUserProfile(authUser, mounted = true) {
     const { data: profileData, error } = await supabase
       .from('profiles')
