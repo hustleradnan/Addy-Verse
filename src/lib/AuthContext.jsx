@@ -55,14 +55,22 @@ export function AuthProvider({ children }) {
         if (data.content.site_name) {
           document.title = data.content.site_name;
         }
+
+        let link = document.querySelector("link[rel~='icon']");
+        if (!link) {
+          link = document.createElement('link');
+          link.rel = 'icon';
+          document.head.appendChild(link);
+        }
+
         if (data.content.favicon_url) {
-          let link = document.querySelector("link[rel~='icon']");
-          if (!link) {
-            link = document.createElement('link');
-            link.rel = 'icon';
-            document.head.appendChild(link);
-          }
+          // Uploaded image takes priority
           link.href = data.content.favicon_url;
+        } else if (data.content.logo_emoji) {
+          // Convert emoji into a favicon using an SVG data URL (no upload needed)
+          const emoji = data.content.logo_emoji;
+          const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" font-size="80">${emoji}</text></svg>`;
+          link.href = `data:image/svg+xml,${encodeURIComponent(svg)}`;
         }
       }
     }
