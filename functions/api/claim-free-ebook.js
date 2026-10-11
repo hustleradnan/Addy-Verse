@@ -63,7 +63,7 @@ export async function onRequestPost(context) {
       .insert({
         user_id: userId,
         total_amount: 0,
-        status: 'completed',
+        status: 'paid',
       })
       .select()
       .single();
