@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../lib/AuthContext';
+import ShareButtons from '../components/ShareButtons';
 
 export default function EbookDetail() {
   const { slug } = useParams();
@@ -146,6 +147,10 @@ export default function EbookDetail() {
               {actionMessage}
             </div>
           )}
+
+          <div className="mt-6 pt-6 border-t border-navy-100">
+            <ShareButtons title={ebook.title} url={`/ebooks/${ebook.slug}`} />
+          </div>
         </div>
       </div>
 
