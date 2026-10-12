@@ -19,11 +19,9 @@ async function sha256Hmac(key, message) {
 }
 
 async function sendOrderEmail(env, { customerEmail, customerName, ebookTitles, amount, orderId }) {
-  if (!env.BREVO_API_KEY || !env.ADMIN_NOTIFICATION_EMAIL || !env.BREVO_SENDER_EMAIL) {
-    return 'SKIPPED: missing env vars - apiKey:' + !!env.BREVO_API_KEY + ' admin:' + !!env.ADMIN_NOTIFICATION_EMAIL + ' sender:' + !!env.BREVO_SENDER_EMAIL;
-  }
-
   try {
+    if (!env.BREVO_API_KEY || !env.ADMIN_NOTIFICATION_EMAIL || !env.BREVO_SENDER_EMAIL) return;
+
     const res = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
@@ -45,10 +43,12 @@ async function sendOrderEmail(env, { customerEmail, customerName, ebookTitles, a
       }),
     });
 
-    const text = await res.text();
-    return `STATUS:${res.status} OK:${res.ok} BODY:${text}`;
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error('Brevo email error:', errText);
+    }
   } catch (err) {
-    return 'EXCEPTION: ' + err.message;
+    console.error('Email send failed:', err.message);
   }
 }
 
@@ -97,10 +97,6 @@ export async function onRequestPost(context) {
     }
 
     if (order.status === 'paid') {
-      await supabaseAdmin
-        .from('orders')
-        .update({ email_debug: 'Webhook fired but order already paid - email not attempted here' })
-        .eq('id', order.id);
       return new Response(JSON.stringify({ success: true, message: 'Already processed.' }), { status: 200 });
     }
 
@@ -166,18 +162,13 @@ export async function onRequestPost(context) {
 
     const ebookTitles = (items || []).map((i) => i.ebooks?.title).filter(Boolean).join(', ');
 
-    const emailResult = await sendOrderEmail(env, {
+    await sendOrderEmail(env, {
       customerEmail: profile?.email || 'N/A',
       customerName: profile?.full_name,
       ebookTitles,
       amount: order.total_amount,
       orderId: order.id,
     });
-
-    await supabaseAdmin
-      .from('orders')
-      .update({ email_debug: emailResult })
-      .eq('id', order.id);
 
     return new Response(JSON.stringify({ success: true }), { status: 200 });
   } catch (err) {
