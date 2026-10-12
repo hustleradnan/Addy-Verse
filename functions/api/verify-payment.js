@@ -19,11 +19,9 @@ async function sha256Hmac(key, message) {
 }
 
 async function sendOrderEmail(env, { customerEmail, customerName, ebookTitles, amount, orderId }) {
-  if (!env.BREVO_API_KEY || !env.ADMIN_NOTIFICATION_EMAIL || !env.BREVO_SENDER_EMAIL) {
-    return { attempted: false, reason: 'Missing env vars' };
-  }
-
   try {
+    if (!env.BREVO_API_KEY || !env.ADMIN_NOTIFICATION_EMAIL || !env.BREVO_SENDER_EMAIL) return;
+
     const res = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
@@ -45,10 +43,12 @@ async function sendOrderEmail(env, { customerEmail, customerName, ebookTitles, a
       }),
     });
 
-    const text = await res.text();
-    return { attempted: true, ok: res.ok, status: res.status, body: text };
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error('Brevo email error:', errText);
+    }
   } catch (err) {
-    return { attempted: true, ok: false, error: err.message };
+    console.error('Email send failed:', err.message);
   }
 }
 
@@ -99,7 +99,7 @@ export async function onRequestPost(context) {
     }
 
     if (order.status === 'paid') {
-      return new Response(JSON.stringify({ success: true, message: 'Order pehle se hi complete hai (webhook ne pehle hi process kar diya).', emailDebug: 'order was already paid, email not re-sent here' }), { status: 200 });
+      return new Response(JSON.stringify({ success: true, message: 'Order pehle se hi complete hai.' }), { status: 200 });
     }
 
     const expectedSignature = await sha256Hmac(
@@ -181,7 +181,7 @@ export async function onRequestPost(context) {
 
     const ebookTitles = (items || []).map((i) => i.ebooks?.title).filter(Boolean).join(', ');
 
-    const emailDebug = await sendOrderEmail(env, {
+    await sendOrderEmail(env, {
       customerEmail: profile?.email || userData.user.email,
       customerName: profile?.full_name,
       ebookTitles,
@@ -189,7 +189,7 @@ export async function onRequestPost(context) {
       orderId: order.id,
     });
 
-    return new Response(JSON.stringify({ success: true, emailDebug }), { status: 200 });
+    return new Response(JSON.stringify({ success: true }), { status: 200 });
   } catch (err) {
     return new Response(JSON.stringify({ error: 'Server error: ' + err.message }), { status: 500 });
   }
