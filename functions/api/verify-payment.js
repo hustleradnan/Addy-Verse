@@ -19,9 +19,11 @@ async function sha256Hmac(key, message) {
 }
 
 async function sendOrderEmail(env, { customerEmail, customerName, ebookTitles, amount, orderId }) {
-  try {
-    if (!env.BREVO_API_KEY || !env.ADMIN_NOTIFICATION_EMAIL || !env.BREVO_SENDER_EMAIL) return;
+  if (!env.BREVO_API_KEY || !env.ADMIN_NOTIFICATION_EMAIL || !env.BREVO_SENDER_EMAIL) {
+    return { attempted: false, reason: 'Missing env vars' };
+  }
 
+  try {
     const res = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
@@ -43,12 +45,10 @@ async function sendOrderEmail(env, { customerEmail, customerName, ebookTitles, a
       }),
     });
 
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error('Brevo email error:', errText);
-    }
+    const text = await res.text();
+    return { attempted: true, ok: res.ok, status: res.status, body: text };
   } catch (err) {
-    console.error('Email send failed:', err.message);
+    return { attempted: true, ok: false, error: err.message };
   }
 }
 
@@ -56,86 +56,101 @@ export async function onRequestPost(context) {
   const { request, env } = context;
 
   try {
-    const rawBody = await request.text();
-    const razorpaySignature = request.headers.get('x-razorpay-signature');
+    const authHeader = request.headers.get('Authorization') || '';
+    const token = authHeader.replace('Bearer ', '');
 
-    if (!razorpaySignature) {
-      return new Response(JSON.stringify({ error: 'Signature missing.' }), { status: 400 });
+    if (!token) {
+      return new Response(JSON.stringify({ error: 'Login zaroori hai.' }), { status: 401 });
     }
-
-    const expectedSignature = await sha256Hmac(env.RAZORPAY_WEBHOOK_SECRET, rawBody);
-
-    if (expectedSignature !== razorpaySignature) {
-      return new Response(JSON.stringify({ error: 'Invalid signature.' }), { status: 400 });
-    }
-
-    const payload = JSON.parse(rawBody);
-
-    if (payload.event !== 'payment.captured') {
-      return new Response(JSON.stringify({ success: true, message: 'Event ignored.' }), { status: 200 });
-    }
-
-    const paymentEntity = payload.payload?.payment?.entity;
-    if (!paymentEntity) {
-      return new Response(JSON.stringify({ error: 'Payment entity missing.' }), { status: 400 });
-    }
-
-    const razorpayOrderId = paymentEntity.order_id;
-    const razorpayPaymentId = paymentEntity.id;
-    const amount = paymentEntity.amount / 100;
 
     const supabaseAdmin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 
+    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
+    if (userError || !userData?.user) {
+      return new Response(JSON.stringify({ error: 'Session invalid hai.' }), { status: 401 });
+    }
+
+    const userId = userData.user.id;
+
+    const body = await request.json();
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+      order_id,
+    } = body;
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !order_id) {
+      return new Response(JSON.stringify({ error: 'Payment details incomplete hain.' }), { status: 400 });
+    }
+
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
-      .select('id, user_id, status, total_amount')
-      .eq('razorpay_order_id', razorpayOrderId)
+      .select('id, user_id, total_amount, status')
+      .eq('id', order_id)
       .single();
 
     if (orderError || !order) {
       return new Response(JSON.stringify({ error: 'Order nahi mila.' }), { status: 404 });
     }
 
-    if (order.status === 'paid') {
-      return new Response(JSON.stringify({ success: true, message: 'Already processed.' }), { status: 200 });
+    if (order.user_id !== userId) {
+      return new Response(JSON.stringify({ error: 'Ye order aapka nahi hai.' }), { status: 403 });
     }
 
-    await supabaseAdmin
+    if (order.status === 'paid') {
+      return new Response(JSON.stringify({ success: true, message: 'Order pehle se hi complete hai (webhook ne pehle hi process kar diya).', emailDebug: 'order was already paid, email not re-sent here' }), { status: 200 });
+    }
+
+    const expectedSignature = await sha256Hmac(
+      env.RAZORPAY_KEY_SECRET,
+      `${razorpay_order_id}|${razorpay_payment_id}`
+    );
+
+    if (expectedSignature !== razorpay_signature) {
+      await supabaseAdmin.from('orders').update({ status: 'failed' }).eq('id', order_id);
+      return new Response(JSON.stringify({ error: 'Payment verify nahi hua. Signature match nahi hui.' }), { status: 400 });
+    }
+
+    const { error: updateOrderError } = await supabaseAdmin
       .from('orders')
       .update({ status: 'paid', updated_at: new Date().toISOString() })
-      .eq('id', order.id);
+      .eq('id', order_id);
 
-    const { data: existingPayment } = await supabaseAdmin
-      .from('payments')
-      .select('id')
-      .eq('razorpay_payment_id', razorpayPaymentId)
-      .maybeSingle();
-
-    if (!existingPayment) {
-      await supabaseAdmin.from('payments').insert({
-        order_id: order.id,
-        razorpay_order_id: razorpayOrderId,
-        razorpay_payment_id: razorpayPaymentId,
-        razorpay_signature: razorpaySignature,
-        amount,
-        status: 'success',
-        method: 'razorpay',
-      });
+    if (updateOrderError) {
+      return new Response(JSON.stringify({ error: 'Order update karne mein error: ' + updateOrderError.message }), { status: 500 });
     }
 
-    const { data: items } = await supabaseAdmin
+    const { error: paymentInsertError } = await supabaseAdmin.from('payments').insert({
+      order_id: order.id,
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+      amount: order.total_amount,
+      status: 'success',
+      method: 'razorpay',
+    });
+
+    if (paymentInsertError) {
+      return new Response(JSON.stringify({ error: 'Payment record create karne mein error: ' + paymentInsertError.message }), { status: 500 });
+    }
+
+    const { data: items, error: itemsError } = await supabaseAdmin
       .from('order_items')
       .select('ebook_id, ebooks ( title )')
       .eq('order_id', order.id);
+
+    if (itemsError) {
+      return new Response(JSON.stringify({ error: 'Order items fetch karne mein error: ' + itemsError.message }), { status: 500 });
+    }
 
     if (items && items.length > 0) {
       for (const item of items) {
         const { data: existingDownload } = await supabaseAdmin
           .from('downloads')
           .select('id')
-          .eq('user_id', order.user_id)
+          .eq('user_id', userId)
           .eq('ebook_id', item.ebook_id)
-          .eq('order_id', order.id)
           .maybeSingle();
 
         if (!existingDownload) {
@@ -143,13 +158,17 @@ export async function onRequestPost(context) {
           const expiresAt = new Date();
           expiresAt.setDate(expiresAt.getDate() + 365);
 
-          await supabaseAdmin.from('downloads').insert({
-            user_id: order.user_id,
+          const { error: downloadInsertError } = await supabaseAdmin.from('downloads').insert({
+            user_id: userId,
             ebook_id: item.ebook_id,
             order_id: order.id,
             download_token: downloadToken,
             expires_at: expiresAt.toISOString(),
           });
+
+          if (downloadInsertError) {
+            return new Response(JSON.stringify({ error: 'Download record create karne mein error: ' + downloadInsertError.message }), { status: 500 });
+          }
         }
       }
     }
@@ -157,20 +176,20 @@ export async function onRequestPost(context) {
     const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('full_name, email')
-      .eq('id', order.user_id)
+      .eq('id', userId)
       .single();
 
     const ebookTitles = (items || []).map((i) => i.ebooks?.title).filter(Boolean).join(', ');
 
-    await sendOrderEmail(env, {
-      customerEmail: profile?.email || 'N/A',
+    const emailDebug = await sendOrderEmail(env, {
+      customerEmail: profile?.email || userData.user.email,
       customerName: profile?.full_name,
       ebookTitles,
       amount: order.total_amount,
       orderId: order.id,
     });
 
-    return new Response(JSON.stringify({ success: true }), { status: 200 });
+    return new Response(JSON.stringify({ success: true, emailDebug }), { status: 200 });
   } catch (err) {
     return new Response(JSON.stringify({ error: 'Server error: ' + err.message }), { status: 500 });
   }
