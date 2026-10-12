@@ -18,6 +18,40 @@ async function sha256Hmac(key, message) {
   return signatureArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+async function sendOrderEmail(env, { customerEmail, customerName, ebookTitles, amount, orderId }) {
+  if (!env.BREVO_API_KEY || !env.ADMIN_NOTIFICATION_EMAIL || !env.BREVO_SENDER_EMAIL) {
+    return 'SKIPPED: missing env vars - apiKey:' + !!env.BREVO_API_KEY + ' admin:' + !!env.ADMIN_NOTIFICATION_EMAIL + ' sender:' + !!env.BREVO_SENDER_EMAIL;
+  }
+
+  try {
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': env.BREVO_API_KEY,
+      },
+      body: JSON.stringify({
+        sender: { name: 'BookVault', email: env.BREVO_SENDER_EMAIL },
+        to: [{ email: env.ADMIN_NOTIFICATION_EMAIL }],
+        subject: `New Order: ${ebookTitles} - ₹${amount}`,
+        htmlContent: `
+          <h2>New Order Received</h2>
+          <p><strong>eBook(s):</strong> ${ebookTitles}</p>
+          <p><strong>Amount:</strong> ₹${amount}</p>
+          <p><strong>Customer Name:</strong> ${customerName || 'N/A'}</p>
+          <p><strong>Customer Email:</strong> ${customerEmail}</p>
+          <p><strong>Order ID:</strong> ${orderId}</p>
+        `,
+      }),
+    });
+
+    const text = await res.text();
+    return `STATUS:${res.status} OK:${res.ok} BODY:${text}`;
+  } catch (err) {
+    return 'EXCEPTION: ' + err.message;
+  }
+}
+
 export async function onRequestPost(context) {
   const { request, env } = context;
 
@@ -54,7 +88,7 @@ export async function onRequestPost(context) {
 
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
-      .select('id, user_id, status')
+      .select('id, user_id, status, total_amount')
       .eq('razorpay_order_id', razorpayOrderId)
       .single();
 
@@ -63,6 +97,10 @@ export async function onRequestPost(context) {
     }
 
     if (order.status === 'paid') {
+      await supabaseAdmin
+        .from('orders')
+        .update({ email_debug: 'Webhook fired but order already paid - email not attempted here' })
+        .eq('id', order.id);
       return new Response(JSON.stringify({ success: true, message: 'Already processed.' }), { status: 200 });
     }
 
@@ -91,7 +129,7 @@ export async function onRequestPost(context) {
 
     const { data: items } = await supabaseAdmin
       .from('order_items')
-      .select('ebook_id')
+      .select('ebook_id, ebooks ( title )')
       .eq('order_id', order.id);
 
     if (items && items.length > 0) {
@@ -119,6 +157,27 @@ export async function onRequestPost(context) {
         }
       }
     }
+
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('full_name, email')
+      .eq('id', order.user_id)
+      .single();
+
+    const ebookTitles = (items || []).map((i) => i.ebooks?.title).filter(Boolean).join(', ');
+
+    const emailResult = await sendOrderEmail(env, {
+      customerEmail: profile?.email || 'N/A',
+      customerName: profile?.full_name,
+      ebookTitles,
+      amount: order.total_amount,
+      orderId: order.id,
+    });
+
+    await supabaseAdmin
+      .from('orders')
+      .update({ email_debug: emailResult })
+      .eq('id', order.id);
 
     return new Response(JSON.stringify({ success: true }), { status: 200 });
   } catch (err) {
