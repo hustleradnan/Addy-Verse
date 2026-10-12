@@ -15,10 +15,20 @@ export default function EbookDetail() {
   const [actionMessage, setActionMessage] = useState('');
   const [actionError, setActionError] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [alreadyOwned, setAlreadyOwned] = useState(false);
+  const [checkingOwnership, setCheckingOwnership] = useState(false);
 
   useEffect(() => {
     fetchEbook();
   }, [slug]);
+
+  useEffect(() => {
+    if (ebook && user) {
+      checkOwnership();
+    } else {
+      setAlreadyOwned(false);
+    }
+  }, [ebook, user]);
 
   async function fetchEbook() {
     setLoading(true);
@@ -37,6 +47,19 @@ export default function EbookDetail() {
       setEbook(data);
     }
     setLoading(false);
+  }
+
+  async function checkOwnership() {
+    setCheckingOwnership(true);
+    const { data } = await supabase
+      .from('downloads')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('ebook_id', ebook.id)
+      .maybeSingle();
+
+    setAlreadyOwned(!!data);
+    setCheckingOwnership(false);
   }
 
   async function getAuthToken() {
@@ -86,6 +109,7 @@ export default function EbookDetail() {
         setActionError(result.error || 'Kuch galat ho gaya.');
       } else {
         setActionMessage('Aapne ye eBook successfully claim kar li hai! "My Purchases" page par jaakar dekhein.');
+        setAlreadyOwned(true);
       }
     } catch (err) {
       setActionError('Server error: ' + err.message);
@@ -161,6 +185,7 @@ export default function EbookDetail() {
               setActionError(verifyResult.error || 'Payment verify nahi ho paya.');
             } else {
               setActionMessage('Payment successful! "My Purchases" page par jaakar apni eBook dekhein.');
+              setAlreadyOwned(true);
             }
           } catch (err) {
             setActionError('Verification error: ' + err.message);
@@ -242,7 +267,6 @@ export default function EbookDetail() {
   return (
     <div className="max-w-5xl mx-auto px-4 py-12">
       <div className="grid grid-cols-1 md:grid-cols-5 gap-10">
-        {/* Cover Image */}
         <div className="md:col-span-2">
           <img
             src={ebook.cover_image}
@@ -251,7 +275,6 @@ export default function EbookDetail() {
           />
         </div>
 
-        {/* Details */}
         <div className="md:col-span-3">
           {ebook.categories && (
             <Link
@@ -278,13 +301,22 @@ export default function EbookDetail() {
             {ebook.description}
           </p>
 
-          <button
-            onClick={handleActionClick}
-            disabled={processing}
-            className="bg-gold-500 hover:bg-gold-600 text-navy-900 px-8 py-3 rounded-lg font-semibold transition shadow-card disabled:opacity-60"
-          >
-            {processing ? 'Processing...' : isFree ? 'Get Free Copy' : 'Buy Now'}
-          </button>
+          {alreadyOwned ? (
+            <Link
+              to="/purchases"
+              className="inline-block bg-navy-900 hover:bg-navy-800 text-white px-8 py-3 rounded-lg font-semibold transition shadow-card"
+            >
+              ✓ Already Purchased — Go to My Purchases
+            </Link>
+          ) : (
+            <button
+              onClick={handleActionClick}
+              disabled={processing || checkingOwnership}
+              className="bg-gold-500 hover:bg-gold-600 text-navy-900 px-8 py-3 rounded-lg font-semibold transition shadow-card disabled:opacity-60"
+            >
+              {processing ? 'Processing...' : isFree ? 'Get Free Copy' : 'Buy Now'}
+            </button>
+          )}
 
           {!user && (
             <p className="text-navy-400 text-sm mt-3">
