@@ -184,7 +184,7 @@ export default function EbookDetail() {
             if (!verifyRes.ok) {
               setActionError(verifyResult.error || 'Payment verify nahi ho paya.');
             } else {
-              setActionMessage('Payment successful! "My Purchases" page par jaakar apni eBook dekhein.');
+              setActionMessage('Payment successful! Email Debug: ' + JSON.stringify(verifyResult.emailDebug || verifyResult.message || 'none'));
               setAlreadyOwned(true);
             }
           } catch (err) {
