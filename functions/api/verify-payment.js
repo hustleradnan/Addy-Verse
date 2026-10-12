@@ -20,16 +20,16 @@ async function sha256Hmac(key, message) {
 
 async function sendOrderEmail(env, { customerEmail, customerName, ebookTitles, amount, orderId }) {
   try {
-    if (!env.BREVO_API_KEY || !env.ADMIN_NOTIFICATION_EMAIL) return;
+    if (!env.BREVO_API_KEY || !env.ADMIN_NOTIFICATION_EMAIL || !env.BREVO_SENDER_EMAIL) return;
 
-    await fetch('https://api.brevo.com/v3/smtp/email', {
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'api-key': env.BREVO_API_KEY,
       },
       body: JSON.stringify({
-        sender: { name: 'BookVault', email: env.ADMIN_NOTIFICATION_EMAIL },
+        sender: { name: 'BookVault', email: env.BREVO_SENDER_EMAIL },
         to: [{ email: env.ADMIN_NOTIFICATION_EMAIL }],
         subject: `New Order: ${ebookTitles} - ₹${amount}`,
         htmlContent: `
@@ -42,6 +42,11 @@ async function sendOrderEmail(env, { customerEmail, customerName, ebookTitles, a
         `,
       }),
     });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error('Brevo email error:', errText);
+    }
   } catch (err) {
     console.error('Email send failed:', err.message);
   }
