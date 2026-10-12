@@ -7,6 +7,8 @@ export default function Purchases() {
   const { user } = useAuth()
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
+  const [downloadingId, setDownloadingId] = useState(null)
+  const [errorMessage, setErrorMessage] = useState('')
 
   useEffect(() => {
     async function fetchPurchases() {
@@ -32,6 +34,7 @@ export default function Purchases() {
         ;(order.order_items || []).forEach((item) => {
           flatItems.push({
             id: item.id,
+            ebookId: item.ebook_id,
             ebook: item.ebooks,
             purchasedAt: order.created_at,
           })
@@ -45,11 +48,54 @@ export default function Purchases() {
     fetchPurchases()
   }, [user])
 
+  async function handleDownload(ebookId, itemId) {
+    setErrorMessage('')
+    setDownloadingId(itemId)
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData?.session?.access_token
+
+      if (!token) {
+        setErrorMessage('Session expire ho gayi hai. Dobara login karein.')
+        setDownloadingId(null)
+        return
+      }
+
+      const res = await fetch('/api/get-download-link', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ebook_id: ebookId }),
+      })
+
+      const result = await res.json()
+
+      if (!res.ok) {
+        setErrorMessage(result.error || 'Download link generate nahi ho paya.')
+      } else {
+        window.open(result.url, '_blank')
+      }
+    } catch (err) {
+      setErrorMessage('Server error: ' + err.message)
+    }
+
+    setDownloadingId(null)
+  }
+
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
       <h1 className="text-3xl font-serif-heading font-bold text-navy-900 mb-8">
         My Purchases
       </h1>
+
+      {errorMessage && (
+        <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+          {errorMessage}
+        </div>
+      )}
 
       {loading ? (
         <div className="text-center py-16 text-navy-400">Loading your purchases...</div>
@@ -100,11 +146,11 @@ export default function Purchases() {
                 </p>
               </div>
               <button
-                disabled
-                title="Download will be available soon"
-                className="bg-navy-200 text-navy-500 font-medium px-5 py-2.5 rounded-lg cursor-not-allowed"
+                onClick={() => handleDownload(item.ebookId, item.id)}
+                disabled={downloadingId === item.id}
+                className="bg-gold-500 hover:bg-gold-600 text-navy-950 font-medium px-5 py-2.5 rounded-lg transition-colors disabled:opacity-60"
               >
-                Download — Coming Soon
+                {downloadingId === item.id ? 'Preparing...' : 'Download'}
               </button>
             </div>
           ))}
