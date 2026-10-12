@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 
 export default function Orders() {
@@ -70,6 +70,51 @@ export default function Orders() {
     );
   }
 
+  // ----- Sales Analytics Calculations -----
+  const analytics = useMemo(() => {
+    const paidOrders = orders.filter((o) => o.status === 'paid');
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    let revenueAllTime = 0;
+    let revenueLast30 = 0;
+    let revenueToday = 0;
+
+    const bookStats = {};
+
+    paidOrders.forEach((order) => {
+      const orderDate = new Date(order.created_at);
+      const amount = Number(order.total_amount) || 0;
+
+      revenueAllTime += amount;
+      if (orderDate >= thirtyDaysAgo) revenueLast30 += amount;
+      if (orderDate >= startOfToday) revenueToday += amount;
+
+      (order.order_items || []).forEach((item) => {
+        const title = item.ebooks?.title || 'Unknown eBook';
+        const price = Number(item.price) || 0;
+
+        if (!bookStats[title]) {
+          bookStats[title] = { title, unitsSold: 0, revenue: 0 };
+        }
+        bookStats[title].unitsSold += 1;
+        bookStats[title].revenue += price;
+      });
+    });
+
+    const bookBreakdown = Object.values(bookStats).sort((a, b) => b.revenue - a.revenue);
+
+    return {
+      totalPaidOrders: paidOrders.length,
+      revenueAllTime,
+      revenueLast30,
+      revenueToday,
+      bookBreakdown,
+    };
+  }, [orders]);
+
   const filteredOrders = orders.filter((order) => {
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
 
@@ -90,11 +135,60 @@ export default function Orders() {
 
   return (
     <div>
-      <h1 className="text-2xl font-serif font-bold text-navy-900 mb-6">Orders</h1>
+      <h1 className="text-2xl font-serif font-bold text-navy-900 mb-6">Orders & Sales Analytics</h1>
 
       {error && (
         <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
           {error}
+        </div>
+      )}
+
+      {/* Sales Analytics Summary Cards */}
+      {!loading && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="bg-white rounded-xl shadow-card p-5">
+            <p className="text-navy-400 text-sm mb-1">Total Revenue (All Time)</p>
+            <p className="text-2xl font-bold text-navy-900">₹{analytics.revenueAllTime.toLocaleString('en-IN')}</p>
+          </div>
+          <div className="bg-white rounded-xl shadow-card p-5">
+            <p className="text-navy-400 text-sm mb-1">Revenue (Last 30 Days)</p>
+            <p className="text-2xl font-bold text-navy-900">₹{analytics.revenueLast30.toLocaleString('en-IN')}</p>
+          </div>
+          <div className="bg-white rounded-xl shadow-card p-5">
+            <p className="text-navy-400 text-sm mb-1">Revenue (Today)</p>
+            <p className="text-2xl font-bold text-navy-900">₹{analytics.revenueToday.toLocaleString('en-IN')}</p>
+          </div>
+          <div className="bg-white rounded-xl shadow-card p-5">
+            <p className="text-navy-400 text-sm mb-1">Total Paid Orders</p>
+            <p className="text-2xl font-bold text-navy-900">{analytics.totalPaidOrders}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Per-eBook Sales Breakdown */}
+      {!loading && analytics.bookBreakdown.length > 0 && (
+        <div className="bg-white rounded-xl shadow-card overflow-hidden mb-8">
+          <div className="px-6 py-4 border-b border-navy-100">
+            <h2 className="font-semibold text-navy-900">Sales by eBook</h2>
+          </div>
+          <table className="w-full text-left">
+            <thead className="bg-navy-50 border-b border-navy-100">
+              <tr>
+                <th className="px-6 py-3 text-sm font-semibold text-navy-700">eBook Title</th>
+                <th className="px-6 py-3 text-sm font-semibold text-navy-700">Units Sold</th>
+                <th className="px-6 py-3 text-sm font-semibold text-navy-700">Revenue</th>
+              </tr>
+            </thead>
+            <tbody>
+              {analytics.bookBreakdown.map((book) => (
+                <tr key={book.title} className="border-b border-navy-50 last:border-0">
+                  <td className="px-6 py-3 text-navy-900 font-medium">{book.title}</td>
+                  <td className="px-6 py-3 text-navy-700">{book.unitsSold}</td>
+                  <td className="px-6 py-3 text-navy-900 font-medium">₹{book.revenue.toLocaleString('en-IN')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -127,9 +221,6 @@ export default function Orders() {
         ) : filteredOrders.length === 0 ? (
           <div className="p-10 text-center text-navy-500">
             <p className="mb-1">Abhi tak koi order nahi hai.</p>
-            <p className="text-sm text-navy-400">
-              Payment system Phase 3 mein activate hone ke baad yahan orders dikhne shuru honge.
-            </p>
           </div>
         ) : (
           <table className="w-full text-left min-w-[800px]">
