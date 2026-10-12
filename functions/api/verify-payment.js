@@ -56,101 +56,86 @@ export async function onRequestPost(context) {
   const { request, env } = context;
 
   try {
-    const authHeader = request.headers.get('Authorization') || '';
-    const token = authHeader.replace('Bearer ', '');
+    const rawBody = await request.text();
+    const razorpaySignature = request.headers.get('x-razorpay-signature');
 
-    if (!token) {
-      return new Response(JSON.stringify({ error: 'Login zaroori hai.' }), { status: 401 });
+    if (!razorpaySignature) {
+      return new Response(JSON.stringify({ error: 'Signature missing.' }), { status: 400 });
     }
+
+    const expectedSignature = await sha256Hmac(env.RAZORPAY_WEBHOOK_SECRET, rawBody);
+
+    if (expectedSignature !== razorpaySignature) {
+      return new Response(JSON.stringify({ error: 'Invalid signature.' }), { status: 400 });
+    }
+
+    const payload = JSON.parse(rawBody);
+
+    if (payload.event !== 'payment.captured') {
+      return new Response(JSON.stringify({ success: true, message: 'Event ignored.' }), { status: 200 });
+    }
+
+    const paymentEntity = payload.payload?.payment?.entity;
+    if (!paymentEntity) {
+      return new Response(JSON.stringify({ error: 'Payment entity missing.' }), { status: 400 });
+    }
+
+    const razorpayOrderId = paymentEntity.order_id;
+    const razorpayPaymentId = paymentEntity.id;
+    const amount = paymentEntity.amount / 100;
 
     const supabaseAdmin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 
-    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
-    if (userError || !userData?.user) {
-      return new Response(JSON.stringify({ error: 'Session invalid hai.' }), { status: 401 });
-    }
-
-    const userId = userData.user.id;
-
-    const body = await request.json();
-    const {
-      razorpay_order_id,
-      razorpay_payment_id,
-      razorpay_signature,
-      order_id,
-    } = body;
-
-    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !order_id) {
-      return new Response(JSON.stringify({ error: 'Payment details incomplete hain.' }), { status: 400 });
-    }
-
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
-      .select('id, user_id, total_amount, status')
-      .eq('id', order_id)
+      .select('id, user_id, status, total_amount')
+      .eq('razorpay_order_id', razorpayOrderId)
       .single();
 
     if (orderError || !order) {
       return new Response(JSON.stringify({ error: 'Order nahi mila.' }), { status: 404 });
     }
 
-    if (order.user_id !== userId) {
-      return new Response(JSON.stringify({ error: 'Ye order aapka nahi hai.' }), { status: 403 });
-    }
-
     if (order.status === 'paid') {
-      return new Response(JSON.stringify({ success: true, message: 'Order pehle se hi complete hai.' }), { status: 200 });
+      return new Response(JSON.stringify({ success: true, message: 'Already processed.' }), { status: 200 });
     }
 
-    const expectedSignature = await sha256Hmac(
-      env.RAZORPAY_KEY_SECRET,
-      `${razorpay_order_id}|${razorpay_payment_id}`
-    );
-
-    if (expectedSignature !== razorpay_signature) {
-      await supabaseAdmin.from('orders').update({ status: 'failed' }).eq('id', order_id);
-      return new Response(JSON.stringify({ error: 'Payment verify nahi hua. Signature match nahi hui.' }), { status: 400 });
-    }
-
-    const { error: updateOrderError } = await supabaseAdmin
+    await supabaseAdmin
       .from('orders')
       .update({ status: 'paid', updated_at: new Date().toISOString() })
-      .eq('id', order_id);
+      .eq('id', order.id);
 
-    if (updateOrderError) {
-      return new Response(JSON.stringify({ error: 'Order update karne mein error: ' + updateOrderError.message }), { status: 500 });
+    const { data: existingPayment } = await supabaseAdmin
+      .from('payments')
+      .select('id')
+      .eq('razorpay_payment_id', razorpayPaymentId)
+      .maybeSingle();
+
+    if (!existingPayment) {
+      await supabaseAdmin.from('payments').insert({
+        order_id: order.id,
+        razorpay_order_id: razorpayOrderId,
+        razorpay_payment_id: razorpayPaymentId,
+        razorpay_signature: razorpaySignature,
+        amount,
+        status: 'success',
+        method: 'razorpay',
+      });
     }
 
-    const { error: paymentInsertError } = await supabaseAdmin.from('payments').insert({
-      order_id: order.id,
-      razorpay_order_id,
-      razorpay_payment_id,
-      razorpay_signature,
-      amount: order.total_amount,
-      status: 'success',
-      method: 'razorpay',
-    });
-
-    if (paymentInsertError) {
-      return new Response(JSON.stringify({ error: 'Payment record create karne mein error: ' + paymentInsertError.message }), { status: 500 });
-    }
-
-    const { data: items, error: itemsError } = await supabaseAdmin
+    const { data: items } = await supabaseAdmin
       .from('order_items')
       .select('ebook_id, ebooks ( title )')
       .eq('order_id', order.id);
-
-    if (itemsError) {
-      return new Response(JSON.stringify({ error: 'Order items fetch karne mein error: ' + itemsError.message }), { status: 500 });
-    }
 
     if (items && items.length > 0) {
       for (const item of items) {
         const { data: existingDownload } = await supabaseAdmin
           .from('downloads')
           .select('id')
-          .eq('user_id', userId)
+          .eq('user_id', order.user_id)
           .eq('ebook_id', item.ebook_id)
+          .eq('order_id', order.id)
           .maybeSingle();
 
         if (!existingDownload) {
@@ -158,17 +143,13 @@ export async function onRequestPost(context) {
           const expiresAt = new Date();
           expiresAt.setDate(expiresAt.getDate() + 365);
 
-          const { error: downloadInsertError } = await supabaseAdmin.from('downloads').insert({
-            user_id: userId,
+          await supabaseAdmin.from('downloads').insert({
+            user_id: order.user_id,
             ebook_id: item.ebook_id,
             order_id: order.id,
             download_token: downloadToken,
             expires_at: expiresAt.toISOString(),
           });
-
-          if (downloadInsertError) {
-            return new Response(JSON.stringify({ error: 'Download record create karne mein error: ' + downloadInsertError.message }), { status: 500 });
-          }
         }
       }
     }
@@ -176,13 +157,13 @@ export async function onRequestPost(context) {
     const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('full_name, email')
-      .eq('id', userId)
+      .eq('id', order.user_id)
       .single();
 
     const ebookTitles = (items || []).map((i) => i.ebooks?.title).filter(Boolean).join(', ');
 
     await sendOrderEmail(env, {
-      customerEmail: profile?.email || userData.user.email,
+      customerEmail: profile?.email || 'N/A',
       customerName: profile?.full_name,
       ebookTitles,
       amount: order.total_amount,
