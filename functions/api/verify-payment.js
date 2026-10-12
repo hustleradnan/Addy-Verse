@@ -107,12 +107,16 @@ export async function onRequestPost(context) {
       return new Response(JSON.stringify({ error: 'Payment verify nahi hua. Signature match nahi hui.' }), { status: 400 });
     }
 
-    await supabaseAdmin
+    const { error: updateOrderError } = await supabaseAdmin
       .from('orders')
       .update({ status: 'paid', updated_at: new Date().toISOString() })
       .eq('id', order_id);
 
-    await supabaseAdmin.from('payments').insert({
+    if (updateOrderError) {
+      return new Response(JSON.stringify({ error: 'Order update karne mein error: ' + updateOrderError.message }), { status: 500 });
+    }
+
+    const { error: paymentInsertError } = await supabaseAdmin.from('payments').insert({
       order_id: order.id,
       razorpay_order_id,
       razorpay_payment_id,
@@ -122,24 +126,45 @@ export async function onRequestPost(context) {
       method: 'razorpay',
     });
 
-    const { data: items } = await supabaseAdmin
+    if (paymentInsertError) {
+      return new Response(JSON.stringify({ error: 'Payment record create karne mein error: ' + paymentInsertError.message }), { status: 500 });
+    }
+
+    const { data: items, error: itemsError } = await supabaseAdmin
       .from('order_items')
       .select('ebook_id, ebooks ( title )')
       .eq('order_id', order.id);
 
+    if (itemsError) {
+      return new Response(JSON.stringify({ error: 'Order items fetch karne mein error: ' + itemsError.message }), { status: 500 });
+    }
+
     if (items && items.length > 0) {
       for (const item of items) {
-        const downloadToken = crypto.randomUUID();
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 365);
+        const { data: existingDownload } = await supabaseAdmin
+          .from('downloads')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('ebook_id', item.ebook_id)
+          .maybeSingle();
 
-        await supabaseAdmin.from('downloads').insert({
-          user_id: userId,
-          ebook_id: item.ebook_id,
-          order_id: order.id,
-          download_token: downloadToken,
-          expires_at: expiresAt.toISOString(),
-        });
+        if (!existingDownload) {
+          const downloadToken = crypto.randomUUID();
+          const expiresAt = new Date();
+          expiresAt.setDate(expiresAt.getDate() + 365);
+
+          const { error: downloadInsertError } = await supabaseAdmin.from('downloads').insert({
+            user_id: userId,
+            ebook_id: item.ebook_id,
+            order_id: order.id,
+            download_token: downloadToken,
+            expires_at: expiresAt.toISOString(),
+          });
+
+          if (downloadInsertError) {
+            return new Response(JSON.stringify({ error: 'Download record create karne mein error: ' + downloadInsertError.message }), { status: 500 });
+          }
+        }
       }
     }
 
