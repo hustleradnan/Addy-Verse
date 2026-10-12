@@ -95,6 +95,11 @@ export async function onRequestPost(context) {
       return new Response(JSON.stringify({ error: 'Razorpay order create karne mein error: ' + (razorpayData?.error?.description || 'Unknown error') }), { status: 500 });
     }
 
+    await supabaseAdmin
+      .from('orders')
+      .update({ razorpay_order_id: razorpayData.id })
+      .eq('id', order.id);
+
     return new Response(
       JSON.stringify({
         success: true,
