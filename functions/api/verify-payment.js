@@ -18,6 +18,35 @@ async function sha256Hmac(key, message) {
   return signatureArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+async function sendOrderEmail(env, { customerEmail, customerName, ebookTitles, amount, orderId }) {
+  try {
+    if (!env.BREVO_API_KEY || !env.ADMIN_NOTIFICATION_EMAIL) return;
+
+    await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': env.BREVO_API_KEY,
+      },
+      body: JSON.stringify({
+        sender: { name: 'BookVault', email: env.ADMIN_NOTIFICATION_EMAIL },
+        to: [{ email: env.ADMIN_NOTIFICATION_EMAIL }],
+        subject: `New Order: ${ebookTitles} - ₹${amount}`,
+        htmlContent: `
+          <h2>New Order Received</h2>
+          <p><strong>eBook(s):</strong> ${ebookTitles}</p>
+          <p><strong>Amount:</strong> ₹${amount}</p>
+          <p><strong>Customer Name:</strong> ${customerName || 'N/A'}</p>
+          <p><strong>Customer Email:</strong> ${customerEmail}</p>
+          <p><strong>Order ID:</strong> ${orderId}</p>
+        `,
+      }),
+    });
+  } catch (err) {
+    console.error('Email send failed:', err.message);
+  }
+}
+
 export async function onRequestPost(context) {
   const { request, env } = context;
 
@@ -95,7 +124,7 @@ export async function onRequestPost(context) {
 
     const { data: items } = await supabaseAdmin
       .from('order_items')
-      .select('ebook_id')
+      .select('ebook_id, ebooks ( title )')
       .eq('order_id', order.id);
 
     if (items && items.length > 0) {
@@ -113,6 +142,22 @@ export async function onRequestPost(context) {
         });
       }
     }
+
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('full_name, email')
+      .eq('id', userId)
+      .single();
+
+    const ebookTitles = (items || []).map((i) => i.ebooks?.title).filter(Boolean).join(', ');
+
+    await sendOrderEmail(env, {
+      customerEmail: profile?.email || userData.user.email,
+      customerName: profile?.full_name,
+      ebookTitles,
+      amount: order.total_amount,
+      orderId: order.id,
+    });
 
     return new Response(JSON.stringify({ success: true }), { status: 200 });
   } catch (err) {
