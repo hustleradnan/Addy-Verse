@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { Helmet } from 'react-helmet-async'
 import { supabase } from '../lib/supabaseClient'
 
 export default function About() {
@@ -35,6 +36,12 @@ export default function About() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+      <Helmet>
+        <title>About Us - BookVault</title>
+        <meta name="description" content="Learn more about BookVault - your trusted source for premium eBooks and insightful articles." />
+        <link rel="canonical" href="https://addyverse.pages.dev/about" />
+      </Helmet>
+
       <h1 className="text-3xl sm:text-4xl font-serif-heading font-bold text-navy-900 mb-6 text-center">
         {content.heading}
       </h1>
