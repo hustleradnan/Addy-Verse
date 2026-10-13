@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Helmet } from 'react-helmet-async'
 import { supabase } from '../lib/supabaseClient'
 
 export default function Categories() {
@@ -37,6 +38,12 @@ export default function Categories() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <Helmet>
+        <title>Categories - BookVault</title>
+        <meta name="description" content="Browse eBooks by category on BookVault. Find books organized by topic to discover your next favorite read." />
+        <link rel="canonical" href="https://addyverse.pages.dev/categories" />
+      </Helmet>
+
       <div className="text-center mb-10">
         <h1 className="text-3xl sm:text-4xl font-serif-heading font-bold text-navy-900 mb-3">
           Categories
