@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { Helmet } from 'react-helmet-async'
 import { supabase } from '../lib/supabaseClient'
 
 export default function Contact() {
@@ -50,6 +51,12 @@ export default function Contact() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+      <Helmet>
+        <title>Contact Us - BookVault</title>
+        <meta name="description" content="Get in touch with BookVault. We'd love to hear from you - questions, feedback, or support." />
+        <link rel="canonical" href="https://addyverse.pages.dev/contact" />
+      </Helmet>
+
       <div className="text-center mb-12">
         <h1 className="text-3xl sm:text-4xl font-serif-heading font-bold text-navy-900 mb-3">
           {content.heading}
