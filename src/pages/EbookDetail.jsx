@@ -18,6 +18,7 @@ export default function EbookDetail() {
   const [processing, setProcessing] = useState(false);
   const [alreadyOwned, setAlreadyOwned] = useState(false);
   const [checkingOwnership, setCheckingOwnership] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
   useEffect(() => {
     fetchEbook();
@@ -270,6 +271,8 @@ export default function EbookDetail() {
     : `Get ${ebook.title} by ${ebook.author} on BookVault.`;
   const pageUrl = `https://addyverse.pages.dev/ebooks/${ebook.slug}`;
 
+  const hasPreview = Boolean(ebook.preview_image_1 || ebook.preview_image_2);
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-12">
       <Helmet>
@@ -324,22 +327,33 @@ export default function EbookDetail() {
             {ebook.description}
           </p>
 
-          {alreadyOwned ? (
-            <Link
-              to="/purchases"
-              className="inline-block bg-navy-900 hover:bg-navy-800 text-white px-8 py-3 rounded-lg font-semibold transition shadow-card"
-            >
-              ✓ Already Purchased — Go to My Purchases
-            </Link>
-          ) : (
-            <button
-              onClick={handleActionClick}
-              disabled={processing || checkingOwnership}
-              className="bg-gold-500 hover:bg-gold-600 text-navy-900 px-8 py-3 rounded-lg font-semibold transition shadow-card disabled:opacity-60"
-            >
-              {processing ? 'Processing...' : isFree ? 'Get Free Copy' : 'Buy Now'}
-            </button>
-          )}
+          <div className="flex flex-wrap items-center gap-3 mb-2">
+            {alreadyOwned ? (
+              <Link
+                to="/purchases"
+                className="inline-block bg-navy-900 hover:bg-navy-800 text-white px-8 py-3 rounded-lg font-semibold transition shadow-card"
+              >
+                ✓ Already Purchased — Go to My Purchases
+              </Link>
+            ) : (
+              <button
+                onClick={handleActionClick}
+                disabled={processing || checkingOwnership}
+                className="bg-gold-500 hover:bg-gold-600 text-navy-900 px-8 py-3 rounded-lg font-semibold transition shadow-card disabled:opacity-60"
+              >
+                {processing ? 'Processing...' : isFree ? 'Get Free Copy' : 'Buy Now'}
+              </button>
+            )}
+
+            {hasPreview && (
+              <button
+                onClick={() => setShowPreview(true)}
+                className="bg-white border border-navy-300 hover:bg-navy-50 text-navy-900 px-8 py-3 rounded-lg font-semibold transition shadow-card"
+              >
+                📖 Preview
+              </button>
+            )}
+          </div>
 
           {!user && (
             <p className="text-navy-400 text-sm mt-3">
@@ -370,6 +384,47 @@ export default function EbookDetail() {
           ← Sabhi eBooks dekhein
         </Link>
       </div>
+
+      {showPreview && (
+        <div
+          className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
+          onClick={() => setShowPreview(false)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl max-w-3xl w-full p-6 relative max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowPreview(false)}
+              className="absolute top-3 right-3 text-navy-500 hover:text-navy-900 text-2xl leading-none"
+              aria-label="Close preview"
+            >
+              &times;
+            </button>
+
+            <h3 className="text-xl font-serif font-bold text-navy-900 mb-4">
+              {ebook.title} — Preview
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {ebook.preview_image_1 && (
+                <img
+                  src={ebook.preview_image_1}
+                  alt={`${ebook.title} preview 1`}
+                  className="w-full rounded-lg border border-navy-100 object-contain"
+                />
+              )}
+              {ebook.preview_image_2 && (
+                <img
+                  src={ebook.preview_image_2}
+                  alt={`${ebook.title} preview 2`}
+                  className="w-full rounded-lg border border-navy-100 object-contain"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
