@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import { supabase } from '../lib/supabaseClient';
 import ShareButtons from '../components/ShareButtons';
 
@@ -12,23 +13,6 @@ export default function ArticleDetail() {
   useEffect(() => {
     fetchArticle();
   }, [slug]);
-
-  useEffect(() => {
-    if (article) {
-      document.title = article.seo_title || article.title;
-
-      let metaDesc = document.querySelector('meta[name="description"]');
-      if (!metaDesc) {
-        metaDesc = document.createElement('meta');
-        metaDesc.setAttribute('name', 'description');
-        document.head.appendChild(metaDesc);
-      }
-      metaDesc.setAttribute(
-        'content',
-        article.seo_description || article.title
-      );
-    }
-  }, [article]);
 
   async function fetchArticle() {
     setLoading(true);
@@ -76,8 +60,29 @@ export default function ArticleDetail() {
     );
   }
 
+  const pageTitle = article.seo_title || `${article.title} - BookVault`;
+  const pageDescription = article.seo_description || article.title;
+  const pageUrl = `https://addyverse.pages.dev/articles/${article.slug}`;
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-12">
+      <Helmet>
+        <title>{pageTitle}</title>
+        <meta name="description" content={pageDescription} />
+        <link rel="canonical" href={pageUrl} />
+
+        <meta property="og:type" content="article" />
+        <meta property="og:title" content={pageTitle} />
+        <meta property="og:description" content={pageDescription} />
+        <meta property="og:url" content={pageUrl} />
+        {article.featured_image && <meta property="og:image" content={article.featured_image} />}
+
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={pageTitle} />
+        <meta name="twitter:description" content={pageDescription} />
+        {article.featured_image && <meta name="twitter:image" content={article.featured_image} />}
+      </Helmet>
+
       {article.categories && (
         <Link
           to={`/categories/${article.categories.slug}`}
