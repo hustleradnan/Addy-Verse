@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Helmet } from 'react-helmet-async'
 import { supabase } from '../lib/supabaseClient'
 import EbookCard from '../components/EbookCard'
 import ArticleCard from '../components/ArticleCard'
@@ -41,6 +42,12 @@ export default function Home() {
 
   return (
     <div>
+      <Helmet>
+        <title>BookVault - Premium eBooks & Articles</title>
+        <meta name="description" content="Discover premium eBooks and insightful articles on BookVault. Your trusted source for quality reading material." />
+        <link rel="canonical" href="https://addyverse.pages.dev/" />
+      </Helmet>
+
       {/* Hero Section */}
       <section className="bg-navy-950 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 text-center">
