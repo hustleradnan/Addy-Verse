@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /account
+Disallow: /purchases
+
+Sitemap: https://addyverse.pages.dev/sitemap.xml
