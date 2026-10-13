@@ -37,6 +37,14 @@ export default function EbookForm() {
   const [ebookFile, setEbookFile] = useState(null);
   const [existingFilePath, setExistingFilePath] = useState('');
 
+  const [previewFile1, setPreviewFile1] = useState(null);
+  const [previewPreview1, setPreviewPreview1] = useState('');
+  const [existingPreview1, setExistingPreview1] = useState('');
+
+  const [previewFile2, setPreviewFile2] = useState(null);
+  const [previewPreview2, setPreviewPreview2] = useState('');
+  const [existingPreview2, setExistingPreview2] = useState('');
+
   const [loading, setLoading] = useState(isEditMode);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -70,6 +78,8 @@ export default function EbookForm() {
       setIsPublished(data.is_published || false);
       setExistingCoverUrl(data.cover_image || '');
       setExistingFilePath(data.file_path || '');
+      setExistingPreview1(data.preview_image_1 || '');
+      setExistingPreview2(data.preview_image_2 || '');
     }
     setLoading(false);
   }
@@ -96,6 +106,22 @@ export default function EbookForm() {
     }
   }
 
+  function handlePreview1Change(e) {
+    const file = e.target.files[0];
+    if (file) {
+      setPreviewFile1(file);
+      setPreviewPreview1(URL.createObjectURL(file));
+    }
+  }
+
+  function handlePreview2Change(e) {
+    const file = e.target.files[0];
+    if (file) {
+      setPreviewFile2(file);
+      setPreviewPreview2(URL.createObjectURL(file));
+    }
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
@@ -109,6 +135,8 @@ export default function EbookForm() {
 
     let coverImageUrl = existingCoverUrl;
     let filePath = existingFilePath;
+    let previewUrl1 = existingPreview1;
+    let previewUrl2 = existingPreview2;
 
     try {
       if (coverFile) {
@@ -140,6 +168,36 @@ export default function EbookForm() {
         filePath = uploadPath;
       }
 
+      if (previewFile1) {
+        const fileExt = previewFile1.name.split('.').pop();
+        const fileName = `${slug}-preview1-${Date.now()}.${fileExt}`;
+        const uploadPath = `previews/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('ebook-covers')
+          .upload(uploadPath, previewFile1);
+
+        if (uploadError) throw new Error('Preview Image 1 upload failed: ' + uploadError.message);
+
+        const { data: urlData } = supabase.storage.from('ebook-covers').getPublicUrl(uploadPath);
+        previewUrl1 = urlData.publicUrl;
+      }
+
+      if (previewFile2) {
+        const fileExt = previewFile2.name.split('.').pop();
+        const fileName = `${slug}-preview2-${Date.now()}.${fileExt}`;
+        const uploadPath = `previews/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('ebook-covers')
+          .upload(uploadPath, previewFile2);
+
+        if (uploadError) throw new Error('Preview Image 2 upload failed: ' + uploadError.message);
+
+        const { data: urlData } = supabase.storage.from('ebook-covers').getPublicUrl(uploadPath);
+        previewUrl2 = urlData.publicUrl;
+      }
+
       const ebookData = {
         title: title.trim(),
         slug: slug.trim(),
@@ -152,6 +210,8 @@ export default function EbookForm() {
         is_published: isPublished,
         cover_image: coverImageUrl || null,
         file_path: filePath || null,
+        preview_image_1: previewUrl1 || null,
+        preview_image_2: previewUrl2 || null,
       };
 
       if (isEditMode) {
@@ -255,6 +315,33 @@ export default function EbookForm() {
             )}
             <input type="file" accept=".pdf" onChange={handleEbookFileChange} className="block text-sm text-navy-600" />
             <p className="text-xs text-navy-400 mt-1">Ye file private storage mein save hogi — kabhi public URL nahi milega (Phase 4 mein secure download setup hoga).</p>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-card p-6 space-y-4">
+          <div>
+            <p className="text-sm font-medium text-navy-900 mb-1">Preview Images (Optional)</p>
+            <p className="text-xs text-navy-400 mb-4">
+              Customer ko "Preview" button pe ye 2 images dikhengi (jaise kisi 2 sample pages ke screenshots).
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-navy-700 mb-1">Preview Image 1</label>
+                {(previewPreview1 || existingPreview1) && (
+                  <img src={previewPreview1 || existingPreview1} alt="Preview 1" className="w-32 h-44 object-cover rounded-lg mb-2 border border-navy-100" />
+                )}
+                <input type="file" accept="image/*" onChange={handlePreview1Change} className="block text-sm text-navy-600" />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-navy-700 mb-1">Preview Image 2</label>
+                {(previewPreview2 || existingPreview2) && (
+                  <img src={previewPreview2 || existingPreview2} alt="Preview 2" className="w-32 h-44 object-cover rounded-lg mb-2 border border-navy-100" />
+                )}
+                <input type="file" accept="image/*" onChange={handlePreview2Change} className="block text-sm text-navy-600" />
+              </div>
+            </div>
           </div>
         </div>
 
