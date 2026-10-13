@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { Helmet } from 'react-helmet-async'
 import { supabase } from '../lib/supabaseClient'
 import ArticleCard from '../components/ArticleCard'
 
@@ -48,6 +49,12 @@ export default function Articles() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <Helmet>
+        <title>Articles - BookVault</title>
+        <meta name="description" content="Read insightful articles, guides, and ideas on BookVault. Fresh content added regularly across various topics." />
+        <link rel="canonical" href="https://addyverse.pages.dev/articles" />
+      </Helmet>
+
       <div className="text-center mb-10">
         <h1 className="text-3xl sm:text-4xl font-serif-heading font-bold text-navy-900 mb-3">
           Articles
