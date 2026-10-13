@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../lib/AuthContext';
 import ShareButtons from '../components/ShareButtons';
@@ -263,9 +264,31 @@ export default function EbookDetail() {
   }
 
   const isFree = !ebook.price || Number(ebook.price) === 0;
+  const pageTitle = `${ebook.title} by ${ebook.author} - BookVault`;
+  const pageDescription = ebook.description
+    ? ebook.description.slice(0, 160)
+    : `Get ${ebook.title} by ${ebook.author} on BookVault.`;
+  const pageUrl = `https://addyverse.pages.dev/ebooks/${ebook.slug}`;
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-12">
+      <Helmet>
+        <title>{pageTitle}</title>
+        <meta name="description" content={pageDescription} />
+        <link rel="canonical" href={pageUrl} />
+
+        <meta property="og:type" content="book" />
+        <meta property="og:title" content={pageTitle} />
+        <meta property="og:description" content={pageDescription} />
+        <meta property="og:url" content={pageUrl} />
+        {ebook.cover_image && <meta property="og:image" content={ebook.cover_image} />}
+
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={pageTitle} />
+        <meta name="twitter:description" content={pageDescription} />
+        {ebook.cover_image && <meta name="twitter:image" content={ebook.cover_image} />}
+      </Helmet>
+
       <div className="grid grid-cols-1 md:grid-cols-5 gap-10">
         <div className="md:col-span-2">
           <img
