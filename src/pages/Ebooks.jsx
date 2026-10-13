@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { Helmet } from 'react-helmet-async'
 import { supabase } from '../lib/supabaseClient'
 import EbookCard from '../components/EbookCard'
 
@@ -52,6 +53,12 @@ export default function Ebooks() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <Helmet>
+        <title>Browse eBooks - BookVault</title>
+        <meta name="description" content="Explore our full collection of premium eBooks across various categories. Find your next great read on BookVault." />
+        <link rel="canonical" href="https://addyverse.pages.dev/ebooks" />
+      </Helmet>
+
       <div className="text-center mb-10">
         <h1 className="text-3xl sm:text-4xl font-serif-heading font-bold text-navy-900 mb-3">
           Browse eBooks
